@@ -1,79 +1,67 @@
 package me.sgeb.gradle.nativeartifacts.internal
 
-import org.gradle.api.Project
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_GROUP
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getCompileConfigurationName
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getConfigurationNameVar
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getExtractNarDepsTaskName
+import static org.apache.commons.lang.StringUtils.capitalize
+
 import org.gradle.api.Task
-import org.gradle.language.base.BinaryContainer
-import org.gradle.language.base.internal.LanguageSourceSetInternal
-import org.gradle.model.ModelRule
-import org.gradle.nativebinaries.ProjectNativeBinary
-import org.gradle.nativebinaries.internal.ProjectNativeBinaryInternal
+import org.gradle.api.internal.DomainObjectContext
+import org.gradle.api.internal.project.ProjectInternal
+import org.gradle.api.tasks.Copy
+import org.gradle.api.tasks.TaskContainer
+import org.gradle.internal.service.ServiceRegistry
+import org.gradle.model.Finalize
+import org.gradle.model.RuleSource
+import org.gradle.nativeplatform.internal.NativeBinarySpecInternal
+import org.gradle.platform.base.BinaryContainer
 
-class ExtractNarDepsTaskCreator extends ModelRule {
-
-    public static final String NAR_EXTRACT_DEPS_TASK_PREFIX = 'extractNarDeps'
-    public static final String NAR_EXTRACT_PATH = "nar-dependencies"
-
-    private final Project project
-
-    public ExtractNarDepsTaskCreator(Project project) {
-        this.project = project
-    }
+class ExtractNarDepsTaskCreator extends RuleSource {
 
     @SuppressWarnings("GroovyUnusedDeclaration")
-    public void createExtractNarDepsTasks(BinaryContainer binaries) {
-        binaries.all { ProjectNativeBinaryInternal binary ->
-            Task extractTask = createExtractNarDepsTask(binary)
+    @Finalize
+    public void createExtractNarDepsTasks(TaskContainer tasks, BinaryContainer binaries, ServiceRegistry serviceRegistry) {
 
-            Task compileTask = getCompileTask(binary)
-            if (compileTask) {
+        ProjectInternal project = serviceRegistry.get(DomainObjectContext)
+        binaries.withType(NativeBinarySpecInternal).all { NativeBinarySpecInternal binary ->
+            Task extractTask = createExtractNarDepsTask(binary, tasks, project)
+            getCompileTasks(binary).each { compileTask ->
                 compileTask.dependsOn(extractTask)
             }
+            binary.tasks.add(extractTask)
         }
     }
 
-    private Task createExtractNarDepsTask(ProjectNativeBinaryInternal binary) {
-        def depsConfName = ConfigurationCreator.getConfigurationName(binary)
+    private Task createExtractNarDepsTask(NativeBinarySpecInternal binary, TaskContainer tasks, ProjectInternal project) {
+        def depsConfName = getCompileConfigurationName(binary)
         def depsConf = project.configurations[depsConfName]
 
         String extractDepsTaskName = getExtractNarDepsTaskName(binary)
-        def extractDepsTask = project.task(extractDepsTaskName) { Task it ->
-            group = BuildNarTaskCreator.NAR_GROUP
+        def extractDepsTask = tasks.create(extractDepsTaskName, Copy) {
+            group = NAR_GROUP
             description = "Extracts native artifact dependencies for " +
                     "$binary.namingScheme.description."
-            it.dependsOn depsConf
+            dependsOn depsConf
 
             inputs.files depsConf
             outputs.files { binary.narDepsDir.listFiles() }
-            doLast {
-                depsConf.grep {
+
+            from {
+                depsConf.findAll {
                     it.name.endsWith('.nar') || it.name.endsWith('.zip')
-                }.each { narFile ->
-                    project.copy {
-                        from project.zipTree(narFile)
-                        into binary.narDepsDir
-                    }
+                }.collect {
+                    project.zipTree(it)
                 }
             }
+            into binary.narDepsDir
         }
 
         return extractDepsTask
     }
 
-    static String getNarDepsDirName(ProjectNativeBinary binary) {
-        return "$NAR_EXTRACT_PATH/$binary.narConfName"
-    }
-
-    private static String getExtractNarDepsTaskName(ProjectNativeBinaryInternal binary) {
-        return binary.namingScheme.getTaskName(NAR_EXTRACT_DEPS_TASK_PREFIX)
-    }
-
-    private Task getCompileTask(ProjectNativeBinaryInternal binary) {
-        Task result = null
-        if (binary.source.size() > 0) {
-            String taskName = binary.namingScheme.getTaskName('compile',
-                    (binary.source.iterator().next() as LanguageSourceSetInternal).fullName)
-            result = project.tasks.findByName(taskName)
-        }
+    private Set<Task> getCompileTasks(NativeBinarySpecInternal binary) {
+        Set<Task> result = binary.tasks.findAll { it.name.startsWith('compile') }
         return result
     }
 

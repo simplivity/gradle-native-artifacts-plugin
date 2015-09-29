@@ -1,84 +1,129 @@
 package me.sgeb.gradle.nativeartifacts.internal
 
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_COMPILE_CONFIGURATION_PREFIX
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.classifierForBinary
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getCompileConfigurationName
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getConfigurationNameVar
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getNarDepsDirName
+
+import org.gradle.api.Action
 import org.gradle.api.Named
+import org.gradle.api.Transformer
 import org.gradle.api.artifacts.ConfigurationContainer
-import org.gradle.api.logging.Logger
-import org.gradle.language.base.internal.DefaultBinaryNamingScheme
-import org.gradle.model.internal.ModelRegistry
-import org.gradle.nativebinaries.*
-import org.gradle.nativebinaries.platform.Platform
-import org.gradle.nativebinaries.platform.PlatformContainer
+import org.gradle.api.internal.DomainObjectContext
+import org.gradle.api.internal.project.ProjectInternal
+import org.gradle.internal.service.ServiceRegistry
+import org.gradle.model.Defaults
+import org.gradle.model.RuleSource
+import org.gradle.nativeplatform.BuildType
+import org.gradle.nativeplatform.BuildTypeContainer
+import org.gradle.nativeplatform.Flavor
+import org.gradle.nativeplatform.FlavorContainer
+import org.gradle.nativeplatform.NativeBinarySpec
+import org.gradle.nativeplatform.NativeComponentSpec
+import org.gradle.nativeplatform.NativeExecutableSpec
+import org.gradle.nativeplatform.NativeLibrarySpec
+import org.gradle.nativeplatform.internal.TargetedNativeComponentInternal
+import org.gradle.nativeplatform.platform.NativePlatform
+import org.gradle.nativeplatform.platform.internal.NativePlatforms
+import org.gradle.platform.base.internal.DefaultPlatformRequirement
+import org.gradle.platform.base.internal.PlatformRequirement
+import org.gradle.platform.base.internal.PlatformResolvers
+import org.gradle.util.CollectionUtils
 
-class ConfigurationCreator {
+class ConfigurationCreator extends RuleSource {
 
-    public static final String NAR_COMPILE_CONFIGURATION_PREFIX = 'compile'
-
-    private final ConfigurationContainer configurations
-    private final ModelRegistry modelRegistry
-    private final Logger logger
-
-    public ConfigurationCreator(ConfigurationContainer configurations,
-                                ModelRegistry modelRegistry,
-                                Logger logger)
+    @Defaults
+    public void createConfigurationForComponent(
+        NativeComponentSpec nativeComponent,
+        PlatformResolvers platforms,
+        BuildTypeContainer buildTypes,
+        FlavorContainer flavors,
+        ServiceRegistry serviceRegistry)
     {
-        this.configurations = configurations
-        this.modelRegistry = modelRegistry
-        this.logger = logger
+        NativePlatforms nativePlatforms = serviceRegistry.get(NativePlatforms)
+        ProjectInternal project = serviceRegistry.get(DomainObjectContext)
+
+        if (targetedComponentType(nativeComponent)) {
+            createConfigurationForComponentImpl(nativeComponent, platforms, buildTypes, flavors, nativePlatforms, project.configurations)
+        }
+
+        nativeComponent.binaries.all(new Action<NativeBinarySpec>() {
+            @Override
+            public void execute(NativeBinarySpec binary) {
+                ConfigurationCreator.createConfigurationForBinary(binary, project.configurations)
+                ConfigurationCreator.setNativeBinaryProperties(binary, project)
+            }
+        })
     }
 
-    void createFor(component) {
-        allPlatforms.each { platform ->
-            allBuildTypes.each { buildType ->
-                allFlavors.each { flavor ->
-                    configureConfigurationHierarchy(component, platform, buildType, flavor)
+    private static void createConfigurationForBinary(NativeBinarySpec binary, ConfigurationContainer configurations) {
+        if (!targetedComponentType(binary.component)) {
+            createConfigurationHierarchy(configurations, binary.component,
+                binary.targetPlatform, binary.buildType, binary.flavor)
+        }
+    }
+
+    private static void setNativeBinaryProperties(NativeBinarySpec binary, ProjectInternal project) {
+        def depsDirName = getNarDepsDirName(binary)
+        binary.ext.narDepsDir = project.file("$project.buildDir/${depsDirName}")
+        binary.ext.narConfName = getCompileConfigurationName(binary)
+    }
+
+    static boolean targetedComponentType(NativeComponentSpec nativeComponent) {
+        return nativeComponent instanceof NativeExecutableSpec || nativeComponent instanceof NativeLibrarySpec
+    }
+
+    private void createConfigurationForComponentImpl(
+        NativeComponentSpec nativeComponent,
+        PlatformResolvers platforms,
+        BuildTypeContainer buildTypes,
+        FlavorContainer flavors,
+        NativePlatforms nativePlatforms,
+        ConfigurationContainer configurations) {
+
+        TargetedNativeComponentInternal targetedComponent = (TargetedNativeComponentInternal) nativeComponent
+        List<NativePlatform> resolvedPlatforms = resolvePlatforms(targetedComponent, nativePlatforms, platforms)
+
+        for (NativePlatform platform : resolvedPlatforms) {
+
+            Set<BuildType> targetBuildTypes = targetedComponent.chooseBuildTypes(buildTypes)
+            for (BuildType buildType : targetBuildTypes) {
+
+                Set<Flavor> targetFlavors = targetedComponent.chooseFlavors(flavors)
+                for (Flavor flavor : targetFlavors) {
+                    createConfigurationHierarchy(configurations, nativeComponent, platform, buildType, flavor)
                 }
             }
         }
     }
 
-    static String getConfigurationName(ProjectNativeBinary binary) {
-        getConfigurationNameVar(binary.component, binary.targetPlatform,
-                binary.buildType, binary.flavor)
+    private List<NativePlatform> resolvePlatforms(TargetedNativeComponentInternal targetedComponent, NativePlatforms nativePlatforms, final PlatformResolvers platforms) {
+        List<PlatformRequirement> targetPlatforms = targetedComponent.getTargetPlatforms()
+        if (targetPlatforms.isEmpty()) {
+            PlatformRequirement requirement = DefaultPlatformRequirement.create(nativePlatforms.getDefaultPlatformName())
+            targetPlatforms = Collections.singletonList(requirement)
+        }
+        return CollectionUtils.collect(targetPlatforms, new Transformer<NativePlatform, PlatformRequirement>() {
+            @Override
+            public NativePlatform transform(PlatformRequirement platformRequirement) {
+                return platforms.resolve(NativePlatform.class, platformRequirement)
+            }
+        })
     }
 
-    private void configureConfigurationHierarchy(Named... objects)
+    private static void createConfigurationHierarchy(ConfigurationContainer configurations, Named... objects)
     {
         for (int i = objects.size()-1; i >= 0; i--) {
             def parentParams = (i != 0) ? objects[0..i-1] : []
-            def confParentName = getConfigurationNameVar(parentParams as Named[])
-            def confName = getConfigurationNameVar(objects[0..i] as Named[])
+            def confParentName = getConfigurationNameVar(NAR_COMPILE_CONFIGURATION_PREFIX, parentParams as Named[])
+            def confName = getConfigurationNameVar(NAR_COMPILE_CONFIGURATION_PREFIX, objects[0..i] as Named[])
 
             if (confName != confParentName) {
                 def confParent = configurations.maybeCreate(confParentName)
                 def conf = configurations.maybeCreate(confName)
                 conf.extendsFrom confParent
-                logger.info("> Configuration: $confName -> $confParentName")
             }
         }
     }
-
-    private static String getConfigurationNameVar(Named... objects) {
-        def params = new ArrayList()
-        params.add NAR_COMPILE_CONFIGURATION_PREFIX
-        params.addAll(objects.grep { !(it.name in ["default", "current"]) }*.name)
-
-        new DefaultBinaryNamingScheme(null, null, new LinkedList<String>())
-                .makeName(params.toArray(new String[objects.size()]) as String[])
-    }
-
-    // Evaluated at creation time, hence when platforms/buildTypes/flavors have
-    // been set up. Evaluating earlier would finalize the model
-
-    private Set<Platform> getAllPlatforms() {
-        modelRegistry.get("platforms", PlatformContainer)
-    }
-
-    private Set<BuildType> getAllBuildTypes() {
-        modelRegistry.get("buildTypes", BuildTypeContainer)
-    }
-
-    private Set<Flavor> getAllFlavors() {
-        modelRegistry.get("flavors", FlavorContainer)
-    }
-
 }

@@ -14,8 +14,8 @@ import org.gradle.api.internal.artifacts.publish.ArchivePublishArtifact
 import org.gradle.api.internal.component.SoftwareComponentInternal
 import org.gradle.api.internal.component.Usage
 import org.gradle.api.tasks.bundling.AbstractArchiveTask
-import org.gradle.nativebinaries.ProjectNativeComponent
-import org.gradle.nativebinaries.internal.ProjectNativeBinaryInternal
+import org.gradle.nativeplatform.NativeComponentSpec
+import org.gradle.nativeplatform.internal.NativeBinarySpecInternal
 
 class NativeComponent implements SoftwareComponentInternal, Named {
 
@@ -41,15 +41,15 @@ class NativeComponent implements SoftwareComponentInternal, Named {
         return publishArtifact
     }
 
-    public void from(ProjectNativeComponent nativeComponent,
+    public void from(NativeComponentSpec nativeComponent,
                      Closure filter = Closure.IDENTITY) {
         nativeComponentHints.add(new NativeComponentHint(nativeComponent, filter))
     }
 
-    public Set<ProjectNativeBinaryInternal> getBinaries() {
-        Set<ProjectNativeBinaryInternal> result = new LinkedHashSet<>()
-        nativeComponentHints.all { NativeComponentHint hint ->
-            hint.component.binaries.matching(hint.filter).all { ProjectNativeBinaryInternal binary ->
+    public Set<NativeBinarySpecInternal> getBinaries() {
+        Set<NativeBinarySpecInternal> result = new LinkedHashSet<NativeBinarySpecInternal>()
+        nativeComponentHints.each { NativeComponentHint hint ->
+            hint.component.binaries.matching(hint.filter).each { NativeBinarySpecInternal binary ->
                 result.add(binary)
             }
         }
@@ -77,10 +77,10 @@ class NativeComponent implements SoftwareComponentInternal, Named {
     ///////////////////////////////////////////////////////////////////////////
 
     private static class NativeComponentHint {
-        final ProjectNativeComponent component
+        final NativeComponentSpec component
         final Closure filter
 
-        NativeComponentHint(ProjectNativeComponent component, Closure filter) {
+        NativeComponentHint(NativeComponentSpec component, Closure filter) {
             this.component = component
             this.filter = filter
         }

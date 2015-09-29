@@ -1,12 +1,31 @@
+buildscript {
+    repositories {
+        maven {
+            name "SimpliVity Artifactory Repository"
+            url artifactoryUrl
+        }
+    }
+    dependencies {
+        classpath(group: 'org.jfrog.buildinfo', name: 'build-info-extractor-gradle', version: '3.1.1')
+    }
+    configurations.classpath {
+        resolutionStrategy {
+            cacheDynamicVersionsFor 0, 'seconds'
+            cacheChangingModulesFor 0, 'seconds'
+        }
+    }
+}
+
 apply plugin: 'groovy'
 apply plugin: 'maven'
 apply plugin: 'signing'
+apply plugin: 'eclipse'
 
 group = 'me.sgeb.gradle'
-version = '1.1.0-SNAPSHOT'
+version = currentVersion
 
-sourceCompatibility = 1.5
-targetCompatibility = 1.5
+sourceCompatibility = 1.6
+targetCompatibility = 1.6
 
 repositories {
     mavenCentral()
@@ -16,7 +35,7 @@ dependencies {
     compile gradleApi()
     compile localGroovy()
 
-    testCompile 'org.spockframework:spock-core:0.7-groovy-1.8'
+    testCompile 'org.spockframework:spock-core:1.0-groovy-2.3'
 }
 
 jar {
@@ -119,7 +138,7 @@ uploadArchives {
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '1.11'
+    gradleVersion = '2.7'
 }
 
 tasks['uploadArchives'].mustRunAfter tasks.withType(Test)
@@ -134,3 +153,53 @@ gradle.taskGraph.whenReady { taskGraph ->
         }
     }
 }
+
+apply plugin: 'maven-publish'
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId archivesBaseName
+            from components.java
+
+            artifact groovydocJar
+            artifact sourcesJar
+        }
+    }
+}
+
+apply plugin: 'com.jfrog.artifactory'
+
+artifactory {
+    clientConfig.setIncludeEnvVars(true)
+    clientConfig.info.addEnvironmentProperty('artifact.build.date',new java.util.Date().toString())
+
+    contextUrl = artifactoryContextUrl
+
+    publish {
+        repository {
+            repoKey = "${artifactoryPublishRepoKey}" // The Artifactory repository key to publish to
+            username = "${artifactory_user}" // The publisher user name
+            password = "${artifactory_password}" // The publisher password
+            maven = true
+        }
+        defaults {
+            // Reference to Gradle publications defined in the build script.
+            // This is how we tell the Artifactory Plugin which artifacts should be
+            // published to Artifactory.
+            publications('mavenJava')
+            publishArtifacts = true
+            // Properties to be attached to the published artifacts.
+            properties = ['qa.level': 'basic', 'dev.team' : 'core']
+            publishPom = true // Publish generated POM files to Artifactory (true by default)
+            publishIvy = true // Publish generated Ivy descriptor files to Artifactory (true by default)
+        }
+    }
+    resolve {
+        repository {
+            repoKey = 'repo'
+            maven = true
+        }
+    }
+}
+

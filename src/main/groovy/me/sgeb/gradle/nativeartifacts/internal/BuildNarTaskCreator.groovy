@@ -1,74 +1,81 @@
 package me.sgeb.gradle.nativeartifacts.internal
 
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_GROUP
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.classifierForBinary
 import me.sgeb.gradle.nativeartifacts.NativeComponent
-import me.sgeb.gradle.nativeartifacts.NativeComponentContainer
+
 import org.gradle.api.Task
-import org.gradle.api.artifacts.ConfigurationContainer
+import org.gradle.api.artifacts.Configuration
+import org.gradle.api.internal.DomainObjectContext
+import org.gradle.api.internal.project.ProjectInternal
 import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.bundling.AbstractArchiveTask
-import org.gradle.language.base.BinaryContainer
-import org.gradle.language.base.internal.BinaryInternal
-import org.gradle.model.ModelRule
-import org.gradle.nativebinaries.*
-import org.gradle.nativebinaries.internal.AbstractProjectLibraryBinary
-import org.gradle.nativebinaries.internal.ProjectNativeBinaryInternal
+import org.gradle.internal.service.ServiceRegistry
+import org.gradle.model.ModelMap
+import org.gradle.model.Mutate
+import org.gradle.model.RuleSource
+import org.gradle.nativeplatform.NativeBinarySpec
+import org.gradle.nativeplatform.NativeComponentSpec
+import org.gradle.nativeplatform.NativeExecutableBinarySpec
+import org.gradle.nativeplatform.NativeLibraryBinarySpec
+import org.gradle.nativeplatform.SharedLibraryBinarySpec
+import org.gradle.nativeplatform.StaticLibraryBinarySpec
+import org.gradle.nativeplatform.internal.AbstractNativeLibraryBinarySpec
 
-class BuildNarTaskCreator extends ModelRule {
+class BuildNarTaskCreator extends RuleSource {
 
     public static final String NAR_LIFECYCLE_TASK_NAME = 'buildNar'
     public static final String NAR_BUILD_TASK_PREFIX = 'buildNar'
-    public static final String NAR_GROUP = 'Native Artifacts'
-
-    private NativeComponentContainer nativeComponents
-    private final TaskContainer tasks
-    private final ConfigurationContainer configurations
-
-    private final Task narLifecycleTask
-
-    public BuildNarTaskCreator(NativeComponentContainer nativeComponents,
-                               TaskContainer tasks,
-                               ConfigurationContainer configurations)
-    {
-        this.nativeComponents = nativeComponents
-        this.tasks = tasks
-        this.configurations = configurations
-
-        narLifecycleTask = tasks.maybeCreate(NAR_LIFECYCLE_TASK_NAME).configure {
-            description = 'Builds all native artifacts on all buildable platforms.'
-            group = NAR_GROUP
-        }
-    }
 
     @SuppressWarnings("GroovyUnusedDeclaration")
-    // The unnamed parameter is required for ModelRule
-    public void createBuildNarTasks(BinaryContainer _)
-    {
-        nativeComponents.all { NativeComponent nativeComponent ->
-            nativeComponent.binaries.each { ProjectNativeBinaryInternal binary ->
-                def task = createBuildNarTask(binary)
-                if (binary.buildable) {
-                    narLifecycleTask.dependsOn(task)
-                    nativeComponent.from(task)
+    @Mutate
+    public void createBuildNarTasks(TaskContainer tasks, ModelMap<NativeComponentSpec> components, ServiceRegistry serviceRegistry) {
+
+        final ProjectInternal project = serviceRegistry.get(DomainObjectContext)
+        final Task narLifecycleTask = tasks[NAR_LIFECYCLE_TASK_NAME]
+
+        for (final NativeComponentSpec component : components.values()) {
+            if (ConfigurationCreator.targetedComponentType(component)) {
+                NativeComponent nativeComponent = project.components.findByName(component.name)
+
+                if (nativeComponent == null) {
+                    nativeComponent = new NativeComponent(component.name)
+                    nativeComponent.from(component)
+                    project.components.add(nativeComponent)
+                }
+
+                component.binaries.each { NativeBinarySpec binary ->
+                    if (binary.buildable) {
+                        AbstractArchiveTask task = createBuildNarTask(tasks, project, binary)
+                        binary.tasks.add(task)
+
+                        narLifecycleTask.dependsOn(task)
+                        nativeComponent.from(task)
+                    }
                 }
             }
         }
     }
 
-    private AbstractArchiveTask createBuildNarTask(ProjectNativeBinaryInternal binary) {
+    private AbstractArchiveTask createBuildNarTask(TaskContainer tasks, ProjectInternal project, NativeBinarySpec binary) {
+        Configuration configuration = project.configurations[binary.narConfName]
+        File destDir = project.file("$project.buildDir/nar-bundles")
         def narTaskName = getBuildNarTaskName(binary)
         Nar narTask = tasks.maybeCreate(narTaskName, Nar)
         narTask.configure {
             description = "Builds native artifact for $binary.namingScheme.description."
             group = NAR_GROUP
             dependsOn binary.namingScheme.lifecycleTaskName
-            conf configurations[ConfigurationCreator.getConfigurationName(binary)]
+            conf configuration
+
+            destinationDir destDir
 
             from (binary.primaryOutput) {
                 into intoZipDirectory(binary)
             }
 
-            if (binary instanceof AbstractProjectLibraryBinary) {
-                from((binary as AbstractProjectLibraryBinary).headerDirs) {
+            if (binary instanceof AbstractNativeLibraryBinarySpec) {
+                from((binary as AbstractNativeLibraryBinarySpec).headerDirs) {
                     into 'include'
                 }
             }
@@ -80,39 +87,18 @@ class BuildNarTaskCreator extends ModelRule {
         return narTask
     }
 
-    private static String getBuildNarTaskName(BinaryInternal binary) {
+    private static String getBuildNarTaskName(NativeBinarySpec binary) {
         return binary.namingScheme.getTaskName(NAR_BUILD_TASK_PREFIX)
     }
 
-    private static String intoZipDirectory(NativeBinary binary) {
-        if (binary instanceof ExecutableBinary) {
+    private static String intoZipDirectory(NativeBinarySpec binary) {
+        if (binary instanceof NativeExecutableBinarySpec) {
             return 'bin'
         }
-        if (binary instanceof LibraryBinary) {
+        if (binary instanceof NativeLibraryBinarySpec) {
             return 'lib'
         }
         return ''
-    }
-
-    private static String classifierForBinary(NativeBinary binary) {
-        return stringIfNotDefault(binary.targetPlatform.name, '') +
-                libraryType(binary, '-') +
-                stringIfNotDefault(binary.buildType.name) +
-                stringIfNotDefault(binary.flavor.name)
-    }
-
-    private static String libraryType(NativeBinary binary, String prefix = '-') {
-        if (binary instanceof StaticLibraryBinary) {
-            return prefix + 'static'
-        }
-        if (binary instanceof SharedLibraryBinary) {
-            return prefix + 'shared'
-        }
-        return ''
-    }
-
-    private static String stringIfNotDefault(String str, String prefix = '-') {
-        str != 'default' ? prefix + str : ''
     }
 
 }

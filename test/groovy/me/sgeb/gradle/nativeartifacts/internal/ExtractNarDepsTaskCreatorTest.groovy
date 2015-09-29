@@ -10,7 +10,6 @@ import org.gradle.nativebinaries.toolchain.internal.ToolSearchResult
 import org.gradle.testfixtures.ProjectBuilder
 import spock.lang.Specification
 
-import static me.sgeb.gradle.nativeartifacts.internal.BuildNarTaskCreator.NAR_GROUP
 
 class ExtractNarDepsTaskCreatorTest extends Specification {
     def project
