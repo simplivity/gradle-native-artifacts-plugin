@@ -1,11 +1,14 @@
 package me.sgeb.gradle
 
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_COMPILE_CONFIGURATION_PREFIX
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_GROUP
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getConfigurationNameVar
 import me.sgeb.gradle.nativeartifacts.internal.BuildNarTaskCreator
 import me.sgeb.gradle.nativeartifacts.internal.ConfigurationCreator
 import me.sgeb.gradle.nativeartifacts.internal.DownloadedNativeDependencySet
 import me.sgeb.gradle.nativeartifacts.internal.ExtractNarDepsTaskCreator
 
+import org.gradle.api.Named
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.tasks.TaskContainer
@@ -48,8 +51,18 @@ class NativeArtifactsPlugin implements Plugin<Project> {
         // for a downloaded library capturing the include path and library path.
         project.ext.downloadedLibraryDependency = { NativeBinarySpec binary, String libName ->
             File includePath = new File(binary.narDepsDir, "include")
+            if (binary.targetPlatform.operatingSystem.windows) {
+                File libraryPath = new File(binary.narDepsDir, "lib/${libName}.dll")
+                return new DownloadedNativeDependencySet(includePath, libraryPath)
+            }
             File libraryPath = new File(binary.narDepsDir, "lib/lib${libName}.so")
             return new DownloadedNativeDependencySet(includePath, libraryPath)
+        }
+
+        // Add a dynamic method to the project to define a native configuration
+        // name for a given combination of platform/buildType/flavor tuple.
+        project.ext.narConfigurationName = { Named platform, Named buildType, Named flavor ->
+            getConfigurationNameVar(NAR_COMPILE_CONFIGURATION_PREFIX, platform, buildType, flavor)
         }
     }
 }

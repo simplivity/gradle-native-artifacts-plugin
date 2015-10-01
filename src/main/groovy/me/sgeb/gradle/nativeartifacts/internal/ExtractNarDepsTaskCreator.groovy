@@ -37,11 +37,14 @@ class ExtractNarDepsTaskCreator extends RuleSource {
         def depsConfName = getCompileConfigurationName(binary)
         def depsConf = project.configurations[depsConfName]
 
-        String extractDepsTaskName = getExtractNarDepsTaskName(binary)
+        def extractDepsTaskName = getExtractNarDepsTaskName(binary)
+        if (tasks.findByName(extractDepsTaskName) != null) {
+            return tasks.maybeCreate(extractDepsTaskName, Copy)
+        }
+
         def extractDepsTask = tasks.create(extractDepsTaskName, Copy) {
             group = NAR_GROUP
-            description = "Extracts native artifact dependencies for " +
-                    "$binary.namingScheme.description."
+            description = "Extracts native artifact dependencies for configuration $depsConfName."
             dependsOn depsConf
 
             inputs.files depsConf

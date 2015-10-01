@@ -23,6 +23,9 @@ apply plugin: 'eclipse'
 
 group = 'me.sgeb.gradle'
 version = currentVersion
+status = 'Development'
+
+ext.isSnapshot = version.endsWith('-SNAPSHOT')
 
 sourceCompatibility = 1.6
 targetCompatibility = 1.6
@@ -178,7 +181,8 @@ artifactory {
 
     publish {
         repository {
-            repoKey = "${artifactoryPublishRepoKey}" // The Artifactory repository key to publish to
+            // The Artifactory repository key to publish to
+            repoKey = project.isSnapshot ? 'plugins-snapshot-local' : 'plugins-release-local'
             username = "${artifactory_user}" // The publisher user name
             password = "${artifactory_password}" // The publisher password
             maven = true
@@ -190,7 +194,7 @@ artifactory {
             publications('mavenJava')
             publishArtifacts = true
             // Properties to be attached to the published artifacts.
-            properties = ['qa.level': 'basic', 'dev.team' : 'core']
+            // properties = ['qa.level': 'basic', 'dev.team' : 'core']
             publishPom = true // Publish generated POM files to Artifactory (true by default)
             publishIvy = true // Publish generated Ivy descriptor files to Artifactory (true by default)
         }
@@ -202,4 +206,3 @@ artifactory {
         }
     }
 }
-

@@ -15,12 +15,15 @@ class NameUtils
     public static final String NAR_EXTRACT_PATH = "nar-dependencies"
 
     static String getCompileConfigurationName(NativeBinarySpec binary) {
-        getConfigurationNameVar(NAR_COMPILE_CONFIGURATION_PREFIX, binary.component, binary.targetPlatform,
+        // We skip the componentName in this scheme (binary.component)
+        getConfigurationNameVar(NAR_COMPILE_CONFIGURATION_PREFIX, binary.targetPlatform,
                 binary.buildType, binary.flavor)
     }
 
     static String getExtractNarDepsTaskName(NativeBinarySpecInternal binary) {
-        return binary.namingScheme.getTaskName(NAR_EXTRACT_DEPS_TASK_PREFIX)
+        // binary.namingScheme.getTaskName(NAR_EXTRACT_DEPS_TASK_PREFIX)
+        getConfigurationNameVar(NAR_EXTRACT_DEPS_TASK_PREFIX, binary.targetPlatform,
+            binary.buildType, binary.flavor)
     }
 
     static String getNarDepsDirName(NativeBinarySpec binary) {
@@ -61,5 +64,4 @@ class NameUtils
     private static String stringIfNotDefault(String str, String prefix = '-') {
         str != 'default' ? prefix + str : ''
     }
-
 }

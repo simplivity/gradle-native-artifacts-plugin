@@ -34,19 +34,9 @@ import org.gradle.util.CollectionUtils
 class ConfigurationCreator extends RuleSource {
 
     @Defaults
-    public void createConfigurationForComponent(
-        NativeComponentSpec nativeComponent,
-        PlatformResolvers platforms,
-        BuildTypeContainer buildTypes,
-        FlavorContainer flavors,
-        ServiceRegistry serviceRegistry)
+    public void createConfigurationForComponent(NativeComponentSpec nativeComponent, ServiceRegistry serviceRegistry)
     {
-        NativePlatforms nativePlatforms = serviceRegistry.get(NativePlatforms)
         ProjectInternal project = serviceRegistry.get(DomainObjectContext)
-
-        if (targetedComponentType(nativeComponent)) {
-            createConfigurationForComponentImpl(nativeComponent, platforms, buildTypes, flavors, nativePlatforms, project.configurations)
-        }
 
         nativeComponent.binaries.all(new Action<NativeBinarySpec>() {
             @Override
@@ -58,10 +48,8 @@ class ConfigurationCreator extends RuleSource {
     }
 
     private static void createConfigurationForBinary(NativeBinarySpec binary, ConfigurationContainer configurations) {
-        if (!targetedComponentType(binary.component)) {
-            createConfigurationHierarchy(configurations, binary.component,
-                binary.targetPlatform, binary.buildType, binary.flavor)
-        }
+        createConfigurationHierarchy(configurations, binary.component,
+            binary.targetPlatform, binary.buildType, binary.flavor)
     }
 
     private static void setNativeBinaryProperties(NativeBinarySpec binary, ProjectInternal project) {
@@ -70,54 +58,23 @@ class ConfigurationCreator extends RuleSource {
         binary.ext.narConfName = getCompileConfigurationName(binary)
     }
 
-    static boolean targetedComponentType(NativeComponentSpec nativeComponent) {
-        return nativeComponent instanceof NativeExecutableSpec || nativeComponent instanceof NativeLibrarySpec
-    }
-
-    private void createConfigurationForComponentImpl(
-        NativeComponentSpec nativeComponent,
-        PlatformResolvers platforms,
-        BuildTypeContainer buildTypes,
-        FlavorContainer flavors,
-        NativePlatforms nativePlatforms,
-        ConfigurationContainer configurations) {
-
-        TargetedNativeComponentInternal targetedComponent = (TargetedNativeComponentInternal) nativeComponent
-        List<NativePlatform> resolvedPlatforms = resolvePlatforms(targetedComponent, nativePlatforms, platforms)
-
-        for (NativePlatform platform : resolvedPlatforms) {
-
-            Set<BuildType> targetBuildTypes = targetedComponent.chooseBuildTypes(buildTypes)
-            for (BuildType buildType : targetBuildTypes) {
-
-                Set<Flavor> targetFlavors = targetedComponent.chooseFlavors(flavors)
-                for (Flavor flavor : targetFlavors) {
-                    createConfigurationHierarchy(configurations, nativeComponent, platform, buildType, flavor)
-                }
-            }
-        }
-    }
-
-    private List<NativePlatform> resolvePlatforms(TargetedNativeComponentInternal targetedComponent, NativePlatforms nativePlatforms, final PlatformResolvers platforms) {
-        List<PlatformRequirement> targetPlatforms = targetedComponent.getTargetPlatforms()
-        if (targetPlatforms.isEmpty()) {
-            PlatformRequirement requirement = DefaultPlatformRequirement.create(nativePlatforms.getDefaultPlatformName())
-            targetPlatforms = Collections.singletonList(requirement)
-        }
-        return CollectionUtils.collect(targetPlatforms, new Transformer<NativePlatform, PlatformRequirement>() {
-            @Override
-            public NativePlatform transform(PlatformRequirement platformRequirement) {
-                return platforms.resolve(NativePlatform.class, platformRequirement)
-            }
-        })
-    }
-
-    private static void createConfigurationHierarchy(ConfigurationContainer configurations, Named... objects)
+    /**
+     * Create a configuration hierarchy with "compileNative" as the root, using
+     * componentName/platform/buildType/flavor as the dimensions. For now we skip
+     * the componentName from the scheme and may introduce it as a plugin configuration
+     * option if it becomes useful.
+     *
+     * @param configurations the ConfigurationContainer to manipulate the collection
+     * @param parts the collection of componentName/platform/buildType/flavor dimensions
+     */
+    private static void createConfigurationHierarchy(ConfigurationContainer configurations, Named... parts)
     {
-        for (int i = objects.size()-1; i >= 0; i--) {
-            def parentParams = (i != 0) ? objects[0..i-1] : []
+        assert parts.size() == 4
+        int start = 1 // for now we just skip the componentName part
+        for (int i = parts.size()-1; i >= start; i--) {
+            def parentParams = (i != start) ? parts[start..i-1] : []
             def confParentName = getConfigurationNameVar(NAR_COMPILE_CONFIGURATION_PREFIX, parentParams as Named[])
-            def confName = getConfigurationNameVar(NAR_COMPILE_CONFIGURATION_PREFIX, objects[0..i] as Named[])
+            def confName = getConfigurationNameVar(NAR_COMPILE_CONFIGURATION_PREFIX, parts[start..i] as Named[])
 
             if (confName != confParentName) {
                 def confParent = configurations.maybeCreate(confParentName)

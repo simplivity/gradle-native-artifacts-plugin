@@ -17,9 +17,9 @@ import org.gradle.model.RuleSource
 import org.gradle.nativeplatform.NativeBinarySpec
 import org.gradle.nativeplatform.NativeComponentSpec
 import org.gradle.nativeplatform.NativeExecutableBinarySpec
+import org.gradle.nativeplatform.NativeExecutableSpec
 import org.gradle.nativeplatform.NativeLibraryBinarySpec
-import org.gradle.nativeplatform.SharedLibraryBinarySpec
-import org.gradle.nativeplatform.StaticLibraryBinarySpec
+import org.gradle.nativeplatform.NativeLibrarySpec
 import org.gradle.nativeplatform.internal.AbstractNativeLibraryBinarySpec
 
 class BuildNarTaskCreator extends RuleSource {
@@ -35,7 +35,7 @@ class BuildNarTaskCreator extends RuleSource {
         final Task narLifecycleTask = tasks[NAR_LIFECYCLE_TASK_NAME]
 
         for (final NativeComponentSpec component : components.values()) {
-            if (ConfigurationCreator.targetedComponentType(component)) {
+            if (targetedComponentType(component)) {
                 NativeComponent nativeComponent = project.components.findByName(component.name)
 
                 if (nativeComponent == null) {
@@ -57,14 +57,22 @@ class BuildNarTaskCreator extends RuleSource {
         }
     }
 
+    private boolean targetedComponentType(NativeComponentSpec nativeComponent) {
+        return nativeComponent instanceof NativeExecutableSpec || nativeComponent instanceof NativeLibrarySpec
+    }
+
     private AbstractArchiveTask createBuildNarTask(TaskContainer tasks, ProjectInternal project, NativeBinarySpec binary) {
         Configuration configuration = project.configurations[binary.narConfName]
         File destDir = project.file("$project.buildDir/nar-bundles")
+
         def narTaskName = getBuildNarTaskName(binary)
-        Nar narTask = tasks.maybeCreate(narTaskName, Nar)
-        narTask.configure {
-            description = "Builds native artifact for $binary.namingScheme.description."
+        if (tasks.findByName(narTaskName) != null) {
+            return tasks.maybeCreate(narTaskName, Nar)
+        }
+
+        Nar narTask = tasks.create(narTaskName, Nar) {
             group = NAR_GROUP
+            description = "Builds native artifact for $binary.namingScheme.description."
             dependsOn binary.namingScheme.lifecycleTaskName
             conf configuration
 
