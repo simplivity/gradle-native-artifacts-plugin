@@ -8,14 +8,9 @@ buildscript {
     dependencies {
         classpath(group: 'org.jfrog.buildinfo', name: 'build-info-extractor-gradle', version: '3.1.1')
     }
-    configurations.classpath {
-        resolutionStrategy {
-            cacheDynamicVersionsFor 0, 'seconds'
-            cacheChangingModulesFor 0, 'seconds'
-        }
-    }
 }
 
+apply from: rootProject.file('artifactory.gradle')
 apply plugin: 'groovy'
 apply plugin: 'maven'
 apply plugin: 'signing'
@@ -25,13 +20,14 @@ group = 'me.sgeb.gradle'
 version = currentVersion
 status = 'Development'
 
-ext.isSnapshot = version.endsWith('-SNAPSHOT')
-
 sourceCompatibility = 1.6
 targetCompatibility = 1.6
 
 repositories {
-    mavenCentral()
+    maven {
+        name "SimpliVity Artifactory Repository"
+        url artifactoryUrl
+    }
 }
 
 dependencies {
@@ -153,56 +149,6 @@ gradle.taskGraph.whenReady { taskGraph ->
         {
             throw new StopExecutionException('Test task must be run for releases that ' +
                     'will be uploaded.')
-        }
-    }
-}
-
-apply plugin: 'maven-publish'
-
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            artifactId archivesBaseName
-            from components.java
-
-            artifact groovydocJar
-            artifact sourcesJar
-        }
-    }
-}
-
-apply plugin: 'com.jfrog.artifactory'
-
-artifactory {
-    clientConfig.setIncludeEnvVars(true)
-    clientConfig.info.addEnvironmentProperty('artifact.build.date',new java.util.Date().toString())
-
-    contextUrl = artifactoryContextUrl
-
-    publish {
-        repository {
-            // The Artifactory repository key to publish to
-            repoKey = project.isSnapshot ? 'plugins-snapshot-local' : 'plugins-release-local'
-            username = "${artifactory_user}" // The publisher user name
-            password = "${artifactory_password}" // The publisher password
-            maven = true
-        }
-        defaults {
-            // Reference to Gradle publications defined in the build script.
-            // This is how we tell the Artifactory Plugin which artifacts should be
-            // published to Artifactory.
-            publications('mavenJava')
-            publishArtifacts = true
-            // Properties to be attached to the published artifacts.
-            // properties = ['qa.level': 'basic', 'dev.team' : 'core']
-            publishPom = true // Publish generated POM files to Artifactory (true by default)
-            publishIvy = true // Publish generated Ivy descriptor files to Artifactory (true by default)
-        }
-    }
-    resolve {
-        repository {
-            repoKey = 'repo'
-            maven = true
         }
     }
 }
