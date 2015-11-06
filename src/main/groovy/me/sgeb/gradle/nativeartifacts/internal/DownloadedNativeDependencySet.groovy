@@ -1,8 +1,7 @@
 package me.sgeb.gradle.nativeartifacts.internal
 
 import org.gradle.api.file.FileCollection
-import org.gradle.api.internal.file.collections.FileCollectionAdapter
-import org.gradle.api.internal.file.collections.ListBackedFileSet
+import org.gradle.api.internal.file.collections.SimpleFileCollection
 import org.gradle.nativeplatform.NativeDependencySet
 
 class DownloadedNativeDependencySet implements NativeDependencySet {
@@ -10,11 +9,16 @@ class DownloadedNativeDependencySet implements NativeDependencySet {
     final FileCollection linkFiles
     final FileCollection runtimeFiles
 
-    DownloadedNativeDependencySet(File includePath, File libraryPath) {
-        //println "Constructed NativeDependencySet with $includePath and $libraryPath"
-        includeRoots = new FileCollectionAdapter(new ListBackedFileSet(includePath))
-        linkFiles = new FileCollectionAdapter(new ListBackedFileSet(libraryPath))
-        runtimeFiles = new FileCollectionAdapter(new ListBackedFileSet(libraryPath))
+    DownloadedNativeDependencySet(File includePath, File linkLibraryPath, File libraryPath) {
+        includeRoots = new SimpleFileCollection(includePath)
+        linkFiles = new SimpleFileCollection(linkLibraryPath)
+        runtimeFiles = new SimpleFileCollection(libraryPath)
+    }
+
+    DownloadedNativeDependencySet(File includePath) {
+        includeRoots = new SimpleFileCollection(includePath)
+        linkFiles = new SimpleFileCollection()
+        runtimeFiles = new SimpleFileCollection()
     }
 
     FileCollection getIncludeRoots() {
