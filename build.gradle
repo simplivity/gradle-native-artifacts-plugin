@@ -17,7 +17,7 @@ apply plugin: 'signing'
 apply plugin: 'eclipse'
 
 group = 'me.sgeb.gradle'
-version = currentVersion
+version = '2.3.0'
 status = 'Development'
 
 sourceCompatibility = 1.6
@@ -137,7 +137,7 @@ uploadArchives {
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '2.7'
+    gradleVersion = '2.9'
 }
 
 tasks['uploadArchives'].mustRunAfter tasks.withType(Test)

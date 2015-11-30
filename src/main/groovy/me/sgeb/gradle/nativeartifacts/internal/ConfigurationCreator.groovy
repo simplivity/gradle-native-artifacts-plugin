@@ -5,6 +5,7 @@ import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.classifierForBin
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getCompileConfigurationName
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getConfigurationNameVar
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getNarDepsDirName
+import me.sgeb.gradle.nativeartifacts.NativeComponent
 
 import org.gradle.api.Action
 import org.gradle.api.Named
@@ -45,6 +46,18 @@ class ConfigurationCreator extends RuleSource {
                 ConfigurationCreator.setNativeBinaryProperties(binary, project)
             }
         })
+
+        createNativeComponentInternal(nativeComponent, project)
+    }
+
+    private void createNativeComponentInternal(NativeComponentSpec component, ProjectInternal project) {
+        NativeComponent nativeComponent = project.components.findByName(component.name)
+
+        if (nativeComponent == null) {
+            nativeComponent = new NativeComponent(component.name)
+            nativeComponent.from(component)
+            project.components.add(nativeComponent)
+        }
     }
 
     private static void createConfigurationForBinary(NativeBinarySpec binary, ConfigurationContainer configurations) {

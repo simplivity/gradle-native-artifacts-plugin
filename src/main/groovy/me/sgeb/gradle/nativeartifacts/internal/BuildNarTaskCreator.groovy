@@ -38,12 +38,6 @@ class BuildNarTaskCreator extends RuleSource {
             if (targetedComponentType(component)) {
                 NativeComponent nativeComponent = project.components.findByName(component.name)
 
-                if (nativeComponent == null) {
-                    nativeComponent = new NativeComponent(component.name)
-                    nativeComponent.from(component)
-                    project.components.add(nativeComponent)
-                }
-
                 component.binaries.each { NativeBinarySpec binary ->
                     if (binary.buildable) {
                         AbstractArchiveTask task = createBuildNarTask(tasks, project, binary)
