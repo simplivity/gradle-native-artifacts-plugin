@@ -17,7 +17,7 @@ apply plugin: 'signing'
 apply plugin: 'eclipse'
 
 group = 'me.sgeb.gradle'
-version = '2.3.0'
+version = '2.4.0'
 status = 'Development'
 
 sourceCompatibility = 1.6
