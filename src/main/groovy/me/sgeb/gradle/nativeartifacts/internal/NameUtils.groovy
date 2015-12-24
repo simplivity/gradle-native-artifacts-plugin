@@ -10,30 +10,49 @@ import org.gradle.platform.base.internal.DefaultBinaryNamingScheme
 class NameUtils
 {
     public static final String NAR_COMPILE_CONFIGURATION_PREFIX = 'compileNative'
+    public static final String NAR_TEST_CONFIGURATION_PREFIX = 'testNative'
     public static final String NAR_GROUP = 'Native Artifacts'
-    public static final String NAR_EXTRACT_DEPS_TASK_PREFIX = 'extractNarDeps'
+    public static final String NAR_EXTRACT_COMPILE_DEPS_TASK_PREFIX = 'extractNarCompileDeps'
+    public static final String NAR_EXTRACT_TEST_DEPS_TASK_PREFIX = 'extractNarTestDeps'
     public static final String NAR_EXTRACT_PATH = "nar-dependencies"
 
     static String getCompileConfigurationName(NativeBinarySpec binary) {
         // We skip the componentName in this scheme (binary.component)
-        getConfigurationNameVar(NAR_COMPILE_CONFIGURATION_PREFIX, binary.targetPlatform,
-                binary.buildType, binary.flavor)
+        getConfigurationNameVar(NAR_COMPILE_CONFIGURATION_PREFIX,
+                binary.targetPlatform, binary.buildType, binary.flavor)
     }
 
-    static String getExtractNarDepsTaskName(NativeBinarySpecInternal binary) {
-        // binary.namingScheme.getTaskName(NAR_EXTRACT_DEPS_TASK_PREFIX)
-        getConfigurationNameVar(NAR_EXTRACT_DEPS_TASK_PREFIX, binary.targetPlatform,
-            binary.buildType, binary.flavor)
+    static String getTestConfigurationName(NativeBinarySpec binary) {
+        // We skip the componentName in this scheme (binary.component)
+        getConfigurationNameVar(NAR_TEST_CONFIGURATION_PREFIX,
+                binary.targetPlatform, binary.buildType, binary.flavor)
     }
 
-    static String getNarDepsDirName(NativeBinarySpec binary) {
+    static String getExtractNarCompileDepsTaskName(NativeBinarySpecInternal binary) {
+        getConfigurationNameVar(NAR_EXTRACT_COMPILE_DEPS_TASK_PREFIX,
+                binary.targetPlatform, binary.buildType, binary.flavor)
+    }
+    static String getExtractNarTestDepsTaskName(NativeBinarySpecInternal binary) {
+        getConfigurationNameVar(NAR_EXTRACT_TEST_DEPS_TASK_PREFIX,
+                binary.targetPlatform, binary.buildType, binary.flavor)
+    }
+
+    static File getNarCompileDepsDir(File buildDir, NativeBinarySpec binary) {
+        getNarDepsDir(buildDir, NAR_COMPILE_CONFIGURATION_PREFIX, binary)
+    }
+
+    static File getNarTestDepsDir(File buildDir, NativeBinarySpec binary) {
+        getNarDepsDir(buildDir, NAR_TEST_CONFIGURATION_PREFIX, binary)
+    }
+
+    static File getNarDepsDir(File buildDir, String prefix, NativeBinarySpec binary) {
         // The directory name is designated only by the build variants and not
         // the component name. We assume that same dependencies from different
         // components will not introduce different contents. We can revisit making
         // this a choice if need be.
-        def dirName = getConfigurationNameVar(NAR_COMPILE_CONFIGURATION_PREFIX,
-                         binary.targetPlatform, binary.buildType, binary.flavor)
-        return "$NAR_EXTRACT_PATH/$dirName"
+        def dirName = getConfigurationNameVar(prefix,
+                 binary.targetPlatform, binary.buildType, binary.flavor)
+        new File(buildDir, "$NAR_EXTRACT_PATH/$dirName")
     }
 
     static String getConfigurationNameVar(String prefix, Named... objects) {
@@ -41,7 +60,7 @@ class NameUtils
         params.add prefix
         params.addAll(objects.grep { !(it.name in ["default", "current"]) }*.name)
 
-        new DefaultBinaryNamingScheme(null, '', new ArrayList<String>()).makeName(params.toArray(new String[params.size()]))
+        DefaultBinaryNamingScheme.component(null).makeName(params.toArray(new String[params.size()]))
     }
 
     static String classifierForBinary(NativeBinarySpec binary) {

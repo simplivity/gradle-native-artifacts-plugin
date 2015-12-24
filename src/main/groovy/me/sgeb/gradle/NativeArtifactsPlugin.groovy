@@ -1,6 +1,9 @@
 package me.sgeb.gradle
 
-import me.sgeb.gradle.nativeartifacts.internal.NameUtils
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_COMPILE_CONFIGURATION_PREFIX
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_TEST_CONFIGURATION_PREFIX
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_GROUP
+
 import me.sgeb.gradle.nativeartifacts.internal.FunctionHelpers
 import me.sgeb.gradle.nativeartifacts.internal.BuildNarTaskCreator
 import me.sgeb.gradle.nativeartifacts.internal.ConfigurationCreator
@@ -37,9 +40,12 @@ class NativeArtifactsPlugin implements Plugin<Project> {
         modelRegistry.getRoot().applyToAllLinksTransitive(ModelType.of(TaskContainer), BuildNarTaskCreator)
         modelRegistry.getRoot().applyToAllLinksTransitive(ModelType.of(TaskContainer), ExtractNarDepsTaskCreator)
 
+        project.configurations.maybeCreate(NAR_COMPILE_CONFIGURATION_PREFIX)
+        project.configurations.maybeCreate(NAR_TEST_CONFIGURATION_PREFIX)
+
         project.tasks.create(BuildNarTaskCreator.NAR_LIFECYCLE_TASK_NAME).configure {
             description = 'Builds all native artifact archives on all buildable platforms.'
-            group = NameUtils.NAR_GROUP
+            group = NAR_GROUP
         }
 
         FunctionHelpers.addFunctions(project)

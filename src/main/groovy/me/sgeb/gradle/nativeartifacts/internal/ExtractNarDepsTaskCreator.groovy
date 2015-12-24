@@ -2,7 +2,11 @@ package me.sgeb.gradle.nativeartifacts.internal
 
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_GROUP
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getCompileConfigurationName
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getExtractNarDepsTaskName
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getTestConfigurationName
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getNarCompileDepsDir
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getNarTestDepsDir
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getExtractNarCompileDepsTaskName
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getExtractNarTestDepsTaskName
 
 import org.gradle.api.Action
 import org.gradle.api.Project
@@ -13,6 +17,7 @@ import org.gradle.model.Finalize
 import org.gradle.model.RuleSource
 import org.gradle.model.ModelMap
 import org.gradle.nativeplatform.NativeBinarySpec
+import org.gradle.nativeplatform.test.NativeTestSuiteBinarySpec
 import org.gradle.api.internal.DomainObjectContext
 import org.gradle.internal.service.ServiceRegistry
 
@@ -25,19 +30,43 @@ class ExtractNarDepsTaskCreator extends RuleSource {
         Project project = serviceRegistry.get(DomainObjectContext)
 
         binaries.each { NativeBinarySpec binary ->
-            Task extractTask = createExtractNarDepsTask(binary, tasks, project)
-            getCompileTasks(binary).each { compileTask ->
-                compileTask.dependsOn(extractTask)
+            Task extractCompileDepsTask = createExtractCompileDepsTask(binary, tasks, project)
+            binary.tasks.add(extractCompileDepsTask)
+
+            Task extractTestDepsTask = null
+            if (binary instanceof NativeTestSuiteBinarySpec) {
+                extractTestDepsTask = createExtractTestDepsTask(binary, tasks, project)
+                binary.tasks.add(extractTestDepsTask)
             }
-            binary.tasks.add(extractTask)
+
+            getCompileTasks(binary).each { compileTask ->
+                compileTask.dependsOn(extractCompileDepsTask)
+                if (extractTestDepsTask != null) {
+                    compileTask.dependsOn(extractTestDepsTask)
+                }
+            }
         }
     }
 
-    private Task createExtractNarDepsTask(NativeBinarySpec binary, TaskContainer tasks, Project project) {
-        def depsConfName = getCompileConfigurationName(binary)
-        def depsConf = project.configurations[depsConfName]
+    private Task createExtractCompileDepsTask(NativeBinarySpec binary, TaskContainer tasks, Project project) {
+        String confName = getCompileConfigurationName(binary)
+        String taskName = getExtractNarCompileDepsTaskName(binary)
+        File depsDir = getNarCompileDepsDir(project.buildDir, binary)
 
-        def extractDepsTaskName = getExtractNarDepsTaskName(binary)
+        createExtractNarDepsTask(confName, taskName, depsDir, tasks, project)
+    }
+
+    private Task createExtractTestDepsTask(NativeBinarySpec binary, TaskContainer tasks, Project project) {
+        String confName = getTestConfigurationName(binary)
+        String taskName = getExtractNarTestDepsTaskName(binary)
+        File depsDir = getNarTestDepsDir(project.buildDir, binary)
+
+        createExtractNarDepsTask(confName, taskName, depsDir, tasks, project)
+    }
+
+    private Task createExtractNarDepsTask(String depsConfName, String extractDepsTaskName,
+                                  File narDepsDir, TaskContainer tasks, Project project) {
+        def depsConf = project.configurations[depsConfName]
         def extractDepsTask = tasks.findByName(extractDepsTaskName)
         if (extractDepsTask == null) {
             extractDepsTask = tasks.create(extractDepsTaskName, Copy, new Action<Copy>() {
@@ -48,7 +77,7 @@ class ExtractNarDepsTaskCreator extends RuleSource {
                     copy.dependsOn depsConf
 
                     copy.inputs.files depsConf
-                    copy.outputs.files { binary.narDepsDir.listFiles() }
+                    copy.outputs.dir narDepsDir
 
                     copy.from {
                         depsConf.findAll {
@@ -57,7 +86,7 @@ class ExtractNarDepsTaskCreator extends RuleSource {
                             project.zipTree(it)
                         }
                     }
-                    copy.into binary.narDepsDir
+                    copy.into narDepsDir
                 }
             })
         }
@@ -69,5 +98,4 @@ class ExtractNarDepsTaskCreator extends RuleSource {
         Set<Task> result = binary.tasks.findAll { it.name.startsWith('compile') }
         return result
     }
-
 }

@@ -2,6 +2,7 @@ package me.sgeb.gradle.nativeartifacts.internal
 
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_GROUP
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.classifierForBinary
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getCompileConfigurationName
 import me.sgeb.gradle.nativeartifacts.NativeComponent
 
 import org.gradle.api.Action
@@ -21,6 +22,8 @@ import org.gradle.nativeplatform.NativeExecutableBinarySpec
 import org.gradle.nativeplatform.NativeExecutableSpec
 import org.gradle.nativeplatform.NativeLibraryBinarySpec
 import org.gradle.nativeplatform.NativeLibrarySpec
+import org.gradle.nativeplatform.SharedLibraryBinarySpec
+import org.gradle.nativeplatform.StaticLibraryBinarySpec
 import org.gradle.nativeplatform.internal.AbstractNativeLibraryBinarySpec
 
 class BuildNarTaskCreator extends RuleSource {
@@ -62,7 +65,7 @@ class BuildNarTaskCreator extends RuleSource {
     }
 
     private AbstractArchiveTask createBuildNarTask(TaskContainer tasks, Project project, NativeBinarySpec binary) {
-        Configuration configuration = project.configurations[binary.narConfName]
+        Configuration configuration = project.configurations[getCompileConfigurationName(binary)]
         File destDir = project.file("$project.buildDir/nar-bundles")
 
         def narTaskName = getBuildNarTaskName(binary)
@@ -73,7 +76,7 @@ class BuildNarTaskCreator extends RuleSource {
                 public void execute(Nar nar) {
                     nar.group = NAR_GROUP
                     nar.description = "Builds native artifact for $binary.namingScheme.description."
-                    nar.dependsOn binary.namingScheme.lifecycleTaskName
+                    setTaskBuildDependency(nar, binary)
                     nar.conf configuration
                     nar.destinationDir destDir
 
@@ -81,8 +84,8 @@ class BuildNarTaskCreator extends RuleSource {
                         into intoZipDirectory(binary)
                     }
 
-                    if (binary instanceof AbstractNativeLibraryBinarySpec) {
-                        nar.from((binary as AbstractNativeLibraryBinarySpec).headerDirs) {
+                    if (binary instanceof NativeLibraryBinarySpec) {
+                        nar.from(binary.headerDirs) {
                             into 'include'
                         }
                     }
@@ -98,6 +101,18 @@ class BuildNarTaskCreator extends RuleSource {
 
     private String getBuildNarTaskName(NativeBinarySpec binary) {
         return binary.namingScheme.getTaskName(NAR_BUILD_TASK_PREFIX)
+    }
+
+    private void setTaskBuildDependency(Nar nar, NativeBinarySpec binary) {
+        if (binary instanceof NativeExecutableBinarySpec) {
+            nar.dependsOn binary.tasks.link
+        }
+        if (binary instanceof SharedLibraryBinarySpec) {
+            nar.dependsOn binary.tasks.link
+        }
+        if (binary instanceof StaticLibraryBinarySpec) {
+            nar.dependsOn binary.tasks.createStaticLib
+        }
     }
 
     private String intoZipDirectory(NativeBinarySpec binary) {

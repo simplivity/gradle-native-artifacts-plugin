@@ -1,11 +1,14 @@
 package me.sgeb.gradle.nativeartifacts.internal
 
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_COMPILE_CONFIGURATION_PREFIX
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getConfigurationNameVar
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getCompileConfigurationName
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getTestConfigurationName
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getNarCompileDepsDir
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getNarTestDepsDir
 
 import org.gradle.api.Project
 import org.gradle.api.Named
 import org.gradle.nativeplatform.NativeBinarySpec
+import org.gradle.nativeplatform.test.NativeTestSuiteBinarySpec
 
 class FunctionHelpers {
     public static void addFunctions(Project project) {
@@ -20,35 +23,50 @@ class FunctionHelpers {
         //          does not generate 'api' libraries yet.
         project.ext.addDownloadedLibraryDependency = {
             NativeBinarySpec binary, String group, String name, String version, String linkage ->
-            assert linkage == 'static' || linkage == 'shared'
+            def confName = getCompileConfigurationName(binary)
+            def narDepsDir = getNarCompileDepsDir(project.buildDir, binary)
 
-            def classifier = "${binary.targetPlatform.name}-${linkage}-${binary.buildType.name}"
-            def depMap = [ group: group, name: name, version: version, ext: 'nar', classifier: classifier ]
-            project.dependencies {
-                add binary.narConfName, depMap
-            }
+            addLibDependency(project, binary, group, name, version, linkage, confName, narDepsDir, linkage)
+        }
 
-            setDownloadedLibrary(binary, name, linkage)
+        project.ext.addDownloadedLibraryTestDependency = {
+            NativeBinarySpec binary, String group, String name, String version, String linkage ->
+            def confName = getTestConfigurationName(binary)
+            def narDepsDir = getNarTestDepsDir(project.buildDir, binary)
+
+            addLibDependency(project, binary, group, name, version, linkage, confName, narDepsDir, linkage)
         }
 
         project.ext.addDownloadedApiLibraryDependency = {
             NativeBinarySpec binary, String group, String name, String version, String linkage ->
-            assert linkage == 'static' || linkage == 'shared'
+            def confName = getCompileConfigurationName(binary)
+            def narDepsDir = getNarCompileDepsDir(project.buildDir, binary)
 
-            def classifier = "${binary.targetPlatform.name}-${linkage}-${binary.buildType.name}"
-            def depMap = [ group: group, name: name, version: version, ext: 'nar', classifier: classifier ]
-            project.dependencies {
-                add binary.narConfName, depMap
-            }
-
-            setDownloadedLibrary(binary, name, 'api')
+            addLibDependency(project, binary, group, name, version, linkage, confName, narDepsDir, 'api')
         }
 
-        // Add a dynamic method to the project to define a native configuration
-        // name for a given combination of platform/buildType/flavor tuple.
-        project.ext.narConfigurationName = { Named platform, Named buildType, Named flavor ->
-            getConfigurationNameVar(NAR_COMPILE_CONFIGURATION_PREFIX, platform, buildType, flavor)
+        project.ext.addDownloadedApiLibraryTestDependency = {
+            NativeBinarySpec binary, String group, String name, String version, String linkage ->
+            def confName = getTestConfigurationName(binary)
+            def narDepsDir = getNarTestDepsDir(project.buildDir, binary)
+
+            addLibDependency(project, binary, group, name, version, linkage, confName, narDepsDir, 'api')
         }
+    }
+
+    private static void addLibDependency(Project project, NativeBinarySpec binary,
+                            String group, String name, String version, String linkage,
+                         String confName, File narDepsDir, String libType) {
+        assert linkage == 'static' || linkage == 'shared'
+
+        def classifier = "${binary.targetPlatform.name}-${linkage}-${binary.buildType.name}"
+        def depMap = [ group: group, name: name, version: version, ext: 'nar', classifier: classifier ]
+
+        project.dependencies {
+            add confName, depMap
+        }
+
+        setDownloadedLibrary(binary, narDepsDir, name, libType)
     }
 
     // Define a NativeDependencySet for a downloaded library capturing the include
@@ -56,16 +74,16 @@ class FunctionHelpers {
     // binary:  the NativeBinarySpec that we are adding a dependency for
     // name:    the simple name of the library as a string
     // linkage: the string 'static', 'shared' or 'api' to handle the type of library
-    private static void setDownloadedLibrary(NativeBinarySpec binary, String name, String linkage) {
-        File includePath = new File(binary.narDepsDir, "include")
+    private static void setDownloadedLibrary(NativeBinarySpec binary, File narDepsDir, String name, String linkage) {
+        File includePath = new File(narDepsDir, "include")
         File libraryFile, linkLibraryFile
 
         if (linkage == 'shared') {
-            libraryFile = sharedLibrary(binary, name)
-            linkLibraryFile = linkLibrary(binary, name)
+            libraryFile = sharedLibrary(binary, narDepsDir, name)
+            linkLibraryFile = linkLibrary(binary, narDepsDir, name)
             binary.lib new DownloadedNativeDependencySet(includePath, linkLibraryFile, libraryFile)
         } else if (linkage == 'static') {
-            libraryFile = staticLibrary(binary, name)
+            libraryFile = staticLibrary(binary, narDepsDir, name)
             linkLibraryFile = libraryFile
             binary.lib new DownloadedNativeDependencySet(includePath, linkLibraryFile, libraryFile)
         } else if (linkage == 'api') {
@@ -75,20 +93,20 @@ class FunctionHelpers {
         }
     }
 
-    private static File sharedLibrary(NativeBinarySpec binary, String libName) {
-        return new File(binary.narDepsDir,
+    private static File sharedLibrary(NativeBinarySpec binary, File narDepsDir, String libName) {
+        return new File(narDepsDir,
             (binary.targetPlatform.operatingSystem.windows) ?
                  "lib/${libName}.dll" : "lib/lib${libName}.so")
     }
 
-    private static File staticLibrary(NativeBinarySpec binary, String libName) {
-        return new File(binary.narDepsDir,
+    private static File staticLibrary(NativeBinarySpec binary, File narDepsDir, String libName) {
+        return new File(narDepsDir,
             (binary.targetPlatform.operatingSystem.windows) ?
                  "lib/${libName}.lib" : "lib/lib${libName}.a")
     }
 
-    private static File linkLibrary(NativeBinarySpec binary, String libName) {
-        return new File(binary.narDepsDir,
+    private static File linkLibrary(NativeBinarySpec binary, File narDepsDir, String libName) {
+        return new File(narDepsDir,
             (binary.targetPlatform.operatingSystem.windows) ?
                  "lib/${libName}.lib" : "lib/lib${libName}.so")
     }
