@@ -87,6 +87,7 @@ class BuildNarTaskCreator extends RuleSource {
                     if (binary instanceof NativeLibraryBinarySpec) {
                         nar.from(binary.headerDirs) {
                             into 'include'
+                            exclude '**/*.cpp', '**/*.c'
                         }
                     }
 
