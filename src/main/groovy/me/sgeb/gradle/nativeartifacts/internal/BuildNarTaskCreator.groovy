@@ -3,7 +3,7 @@ package me.sgeb.gradle.nativeartifacts.internal
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_GROUP
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.classifierForBinary
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getCompileConfigurationName
-import me.sgeb.gradle.nativeartifacts.NativeComponent
+import me.sgeb.gradle.nativeartifacts.NativeSoftwareComponent
 
 import org.gradle.api.Action
 import org.gradle.api.Project
@@ -42,10 +42,10 @@ class BuildNarTaskCreator extends RuleSource {
             if (binary.buildable) {
                 NativeComponentSpec component = binary.getComponent()
                 if (targetedComponentType(component)) {
-                    NativeComponent nativeComponent = project.components.findByName(component.name)
+                    NativeSoftwareComponent nativeComponent = project.components.findByName(component.name)
 
                     if (nativeComponent == null) {
-                        nativeComponent = new NativeComponent(component.name)
+                        nativeComponent = new NativeSoftwareComponent(component.name)
                         nativeComponent.from(component)
                         project.components.add(nativeComponent)
                     }

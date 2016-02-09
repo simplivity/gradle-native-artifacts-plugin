@@ -1,25 +1,25 @@
 package me.sgeb.gradle
 
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_COMPILE_CONFIGURATION_PREFIX
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_TEST_CONFIGURATION_PREFIX
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_GROUP
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_TEST_CONFIGURATION_PREFIX
 
-import me.sgeb.gradle.nativeartifacts.internal.FunctionHelpers
+import javax.inject.Inject
+
 import me.sgeb.gradle.nativeartifacts.internal.BuildNarTaskCreator
 import me.sgeb.gradle.nativeartifacts.internal.ConfigurationCreator
 import me.sgeb.gradle.nativeartifacts.internal.ExtractNarDepsTaskCreator
-import me.sgeb.gradle.nativeartifacts.NativeComponent
+import me.sgeb.gradle.nativeartifacts.internal.FunctionHelpers
+import me.sgeb.gradle.nativeartifacts.internal.SvtVersionTagCreator
 
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.tasks.TaskContainer
-import org.gradle.nativeplatform.NativeComponentSpec
-import org.gradle.nativeplatform.plugins.NativeComponentPlugin
 import org.gradle.internal.reflect.Instantiator
 import org.gradle.model.internal.registry.ModelRegistry
 import org.gradle.model.internal.type.ModelType
-
-import javax.inject.Inject
+import org.gradle.nativeplatform.NativeComponentSpec
+import org.gradle.nativeplatform.plugins.NativeComponentPlugin
 
 class NativeArtifactsPlugin implements Plugin<Project> {
 
@@ -37,6 +37,7 @@ class NativeArtifactsPlugin implements Plugin<Project> {
         project.pluginManager.apply(NativeComponentPlugin)
 
         modelRegistry.getRoot().applyToAllLinksTransitive(ModelType.of(NativeComponentSpec), ConfigurationCreator)
+        modelRegistry.getRoot().applyToAllLinksTransitive(ModelType.of(TaskContainer), SvtVersionTagCreator)
         modelRegistry.getRoot().applyToAllLinksTransitive(ModelType.of(TaskContainer), BuildNarTaskCreator)
         modelRegistry.getRoot().applyToAllLinksTransitive(ModelType.of(TaskContainer), ExtractNarDepsTaskCreator)
 

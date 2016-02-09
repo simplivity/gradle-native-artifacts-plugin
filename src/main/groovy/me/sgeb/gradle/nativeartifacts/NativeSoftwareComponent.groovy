@@ -17,13 +17,13 @@ import org.gradle.api.tasks.bundling.AbstractArchiveTask
 import org.gradle.nativeplatform.NativeComponentSpec
 import org.gradle.nativeplatform.internal.NativeBinarySpecInternal
 
-class NativeComponent implements SoftwareComponentInternal, Named {
+class NativeSoftwareComponent implements SoftwareComponentInternal, Named {
 
     private final String name
     private final PublishArtifactSet artifacts
     private final DomainObjectSet<NativeComponentHint> nativeComponentHints
 
-    public NativeComponent(String name) {
+    public NativeSoftwareComponent(String name) {
         this.name = name
         artifacts = new DefaultPublishArtifactSet(name, new DefaultDomainObjectSet<>(PublishArtifact))
         nativeComponentHints = new DefaultDomainObjectSet<>(NativeComponentHint)
