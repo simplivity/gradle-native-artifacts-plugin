@@ -1,15 +1,16 @@
 plugins {
-    id "com.jfrog.artifactory" version "4.0.0"
-    id 'groovy'
-    id 'eclipse'
-    id 'maven'
-    id 'signing'
+    id "com.jfrog.artifactory" version "4.1.1"
 }
+
+apply plugin: 'groovy'
+apply plugin: 'eclipse'
+apply plugin: 'maven'
+apply plugin: 'signing'
 
 apply from: rootProject.file('artifactory.gradle')
 
 group = 'me.sgeb.gradle'
-version = '2.5.0'
+version = '2.6.0'
 status = 'Development'
 
 sourceCompatibility = 1.6
