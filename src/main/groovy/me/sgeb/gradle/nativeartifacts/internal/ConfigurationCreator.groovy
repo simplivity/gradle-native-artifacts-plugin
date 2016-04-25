@@ -1,8 +1,6 @@
 package me.sgeb.gradle.nativeartifacts.internal
 
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_COMPILE_CONFIGURATION_PREFIX
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_TEST_CONFIGURATION_PREFIX
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getConfigurationNameVar
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.*
 
 import org.gradle.api.Action
 import org.gradle.api.Named
@@ -10,13 +8,11 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.ConfigurationContainer
 import org.gradle.api.internal.DomainObjectContext
 import org.gradle.internal.service.ServiceRegistry
-import org.gradle.nativeplatform.NativeBinarySpec
-import org.gradle.nativeplatform.NativeComponentSpec
-import org.gradle.nativeplatform.NativeExecutableSpec
-import org.gradle.nativeplatform.NativeLibrarySpec
-import org.gradle.nativeplatform.test.NativeTestSuiteBinarySpec
 import org.gradle.model.Defaults
 import org.gradle.model.RuleSource
+import org.gradle.nativeplatform.NativeBinarySpec
+import org.gradle.nativeplatform.NativeComponentSpec
+import org.gradle.nativeplatform.test.NativeTestSuiteBinarySpec
 
 class ConfigurationCreator extends RuleSource {
 
@@ -31,9 +27,15 @@ class ConfigurationCreator extends RuleSource {
                 createConfigurationHierarchy(project.configurations,
                                 NAR_COMPILE_CONFIGURATION_PREFIX, binary.component,
                                 binary.targetPlatform, binary.buildType, binary.flavor)
+                createConfigurationHierarchy(project.configurations,
+                                NAR_RUNTIME_CONFIGURATION_PREFIX, binary.component,
+                                binary.targetPlatform, binary.buildType, binary.flavor)
                 if (binary instanceof NativeTestSuiteBinarySpec) {
                     createConfigurationHierarchy(project.configurations,
-                                    NAR_TEST_CONFIGURATION_PREFIX, binary.component,
+                                    NAR_TEST_COMPILE_CONFIGURATION_PREFIX, binary.component,
+                                    binary.targetPlatform, binary.buildType, binary.flavor)
+                    createConfigurationHierarchy(project.configurations,
+                                    NAR_TEST_RUNTIME_CONFIGURATION_PREFIX, binary.component,
                                     binary.targetPlatform, binary.buildType, binary.flavor)
                 }
             }

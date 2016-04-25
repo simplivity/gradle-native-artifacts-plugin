@@ -1,14 +1,9 @@
 package me.sgeb.gradle.nativeartifacts.internal
 
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getCompileConfigurationName
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getTestConfigurationName
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getNarCompileDepsDir
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getNarTestDepsDir
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.*
 
 import org.gradle.api.Project
-import org.gradle.api.Named
 import org.gradle.nativeplatform.NativeBinarySpec
-import org.gradle.nativeplatform.test.NativeTestSuiteBinarySpec
 
 class FunctionHelpers {
     /**
@@ -38,8 +33,8 @@ class FunctionHelpers {
 
         project.ext.addDownloadedLibraryTestDependency = {
             NativeBinarySpec binary, String group, String name, String version, String linkage ->
-            def confName = getTestConfigurationName(binary)
-            def narDepsDir = getNarTestDepsDir(project.buildDir, binary)
+            def confName = getTestCompileConfigurationName(binary)
+            def narDepsDir = getNarTestCompileDepsDir(project.buildDir, binary)
 
             addLibDependency(project, binary, group, name, version, linkage, confName, narDepsDir, linkage)
         }
@@ -54,8 +49,8 @@ class FunctionHelpers {
 
         project.ext.addDownloadedApiLibraryTestDependency = {
             NativeBinarySpec binary, String group, String name, String version, String linkage ->
-            def confName = getTestConfigurationName(binary)
-            def narDepsDir = getNarTestDepsDir(project.buildDir, binary)
+            def confName = getTestCompileConfigurationName(binary)
+            def narDepsDir = getNarTestCompileDepsDir(project.buildDir, binary)
 
             addLibDependency(project, binary, group, name, version, linkage, confName, narDepsDir, 'api')
         }

@@ -1,97 +1,116 @@
 package me.sgeb.gradle.nativeartifacts.internal
 
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.NAR_GROUP
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getCompileConfigurationName
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getTestConfigurationName
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getNarCompileDepsDir
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getNarTestDepsDir
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getExtractNarCompileDepsTaskName
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getExtractNarTestDepsTaskName
+import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.*
 
 import org.gradle.api.Action
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.internal.DomainObjectContext
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.TaskContainer
+import org.gradle.internal.service.ServiceRegistry
 import org.gradle.model.Finalize
-import org.gradle.model.RuleSource
 import org.gradle.model.ModelMap
+import org.gradle.model.RuleSource
 import org.gradle.nativeplatform.NativeBinarySpec
 import org.gradle.nativeplatform.test.NativeTestSuiteBinarySpec
-import org.gradle.api.internal.DomainObjectContext
-import org.gradle.internal.service.ServiceRegistry
 
 class ExtractNarDepsTaskCreator extends RuleSource {
 
     @SuppressWarnings("GroovyUnusedDeclaration")
     @Finalize
-    public void createExtractNarDepsTasks(TaskContainer tasks, ModelMap<NativeBinarySpec> binaries, ServiceRegistry serviceRegistry) {
+    public void createExtractNarDependenciesTasks(TaskContainer tasks, ModelMap<NativeBinarySpec> binaries, ServiceRegistry serviceRegistry) {
 
         Project project = serviceRegistry.get(DomainObjectContext)
 
-        binaries.each { NativeBinarySpec binary ->
+        for (NativeBinarySpec binary : binaries.values()) {
             Task extractCompileDepsTask = createExtractCompileDepsTask(binary, tasks, project)
-            binary.tasks.add(extractCompileDepsTask)
 
-            Task extractTestDepsTask = null
+            Task extractTestCompileDepsTask = null
             if (binary instanceof NativeTestSuiteBinarySpec) {
-                extractTestDepsTask = createExtractTestDepsTask(binary, tasks, project)
-                binary.tasks.add(extractTestDepsTask)
+                extractTestCompileDepsTask = createExtractTestCompileDepsTask(binary, tasks, project)
             }
 
             getCompileTasks(binary).each { compileTask ->
                 compileTask.dependsOn(extractCompileDepsTask)
-                if (extractTestDepsTask != null) {
-                    compileTask.dependsOn(extractTestDepsTask)
+                if (extractTestCompileDepsTask != null) {
+                    compileTask.dependsOn(extractTestCompileDepsTask)
                 }
             }
         }
     }
 
     private Task createExtractCompileDepsTask(NativeBinarySpec binary, TaskContainer tasks, Project project) {
-        String confName = getCompileConfigurationName(binary)
+        String compileName = getCompileConfigurationName(binary)
+        String runtimeName = getRuntimeConfigurationName(binary)
         String taskName = getExtractNarCompileDepsTaskName(binary)
         File depsDir = getNarCompileDepsDir(project.buildDir, binary)
 
-        createExtractNarDepsTask(confName, taskName, depsDir, tasks, project)
+        Task task = createExtractNarDepsTask(compileName, runtimeName, taskName, depsDir, tasks, project)
+        binary.tasks.add(task)
+        return task
     }
 
-    private Task createExtractTestDepsTask(NativeBinarySpec binary, TaskContainer tasks, Project project) {
-        String confName = getTestConfigurationName(binary)
-        String taskName = getExtractNarTestDepsTaskName(binary)
-        File depsDir = getNarTestDepsDir(project.buildDir, binary)
+    private Task createExtractTestCompileDepsTask(NativeBinarySpec binary, TaskContainer tasks, Project project) {
+        String compileName = getTestCompileConfigurationName(binary)
+        String runtimeName = getTestRuntimeConfigurationName(binary)
+        String taskName = getExtractNarTestCompileDepsTaskName(binary)
+        File depsDir = getNarTestCompileDepsDir(project.buildDir, binary)
 
-        createExtractNarDepsTask(confName, taskName, depsDir, tasks, project)
+        Task task = createExtractNarDepsTask(compileName, runtimeName, taskName, depsDir, tasks, project)
+        binary.tasks.add(task)
+        return task
     }
 
-    private Task createExtractNarDepsTask(String depsConfName, String extractDepsTaskName,
+    private Task createExtractNarDepsTask(String compileName, String runtimeName, String taskName,
                                   File narDepsDir, TaskContainer tasks, Project project) {
-        def depsConf = project.configurations[depsConfName]
-        def extractDepsTask = tasks.findByName(extractDepsTaskName)
-        if (extractDepsTask == null) {
-            extractDepsTask = tasks.create(extractDepsTaskName, Copy, new Action<Copy>() {
+        def task = tasks.findByName(taskName)
+        if (task == null) {
+            def compileConf = project.configurations[compileName]
+            def runtimeConf = project.configurations[runtimeName]
+
+            task = tasks.create(taskName, Copy, new Action<Copy>() {
                 @Override
                 public void execute(Copy copy) {
                     copy.group = NAR_GROUP
-                    copy.description = "Extracts native artifact dependencies for configuration $depsConfName."
-                    copy.dependsOn depsConf
+                    copy.description = "Extracts native artifact dependencies for configurations $compileConf and $runtimeConf."
+                    copy.dependsOn compileConf, runtimeConf
 
-                    copy.inputs.files depsConf
+                    copy.inputs.files compileConf
+                    copy.inputs.files runtimeConf
                     copy.outputs.dir narDepsDir
 
                     copy.from {
-                        depsConf.findAll {
+                        def compileFiles = compileConf.findAll {
                             it.name.endsWith('.nar') || it.name.endsWith('.zip')
-                        }.collect {
+                        } as Set
+
+                        def runtimeFiles = runtimeConf.findAll {
+                            (it.name.endsWith('.nar') || it.name.endsWith('.zip')) && !compileFiles.contains(it)
+                        } as Set
+
+                        def compileTrees = compileFiles.collect {
+                            copy.logger.debug("Extracting NAR file {}", it)
                             project.zipTree(it)
                         }
+                        def runtimeTrees = runtimeFiles.collect {
+                            copy.logger.debug("Extracting NAR file {}", it)
+                            project.zipTree(it).matching {
+                                include 'lib/**/*.a'
+                                include 'lib/**/*.so'
+                                include 'lib/**/*.lib'
+                                include 'lib/**/*.dll'
+                            }
+                        }
+
+                        return compileTrees + runtimeTrees
                     }
                     copy.into narDepsDir
                 }
             })
         }
 
-        return extractDepsTask
+        return task
     }
 
     private Set<Task> getCompileTasks(NativeBinarySpec binary) {

@@ -7,24 +7,54 @@ import org.gradle.nativeplatform.StaticLibraryBinarySpec
 import org.gradle.nativeplatform.internal.NativeBinarySpecInternal;
 import org.gradle.platform.base.internal.DefaultBinaryNamingScheme
 
+class NamedWrapper implements Named {
+    private final String name;
+    NamedWrapper(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+}
+
 class NameUtils
 {
     public static final String NAR_COMPILE_CONFIGURATION_PREFIX = 'compileNative'
-    public static final String NAR_TEST_CONFIGURATION_PREFIX = 'testNative'
+    public static final String NAR_RUNTIME_CONFIGURATION_PREFIX = 'runtimeNative'
+    public static final String NAR_TEST_COMPILE_CONFIGURATION_PREFIX = 'testCompileNative'
+    public static final String NAR_TEST_RUNTIME_CONFIGURATION_PREFIX = 'testRuntimeNative'
     public static final String NAR_GROUP = 'Native Artifacts'
     public static final String NAR_EXTRACT_COMPILE_DEPS_TASK_PREFIX = 'extractNarCompileDeps'
-    public static final String NAR_EXTRACT_TEST_DEPS_TASK_PREFIX = 'extractNarTestDeps'
+    public static final String NAR_EXTRACT_TEST_COMPILE_DEPS_TASK_PREFIX = 'extractNarTestCompileDeps'
+    public static final String NAR_EXTRACT_RUNTIME_DEPS_TASK_PREFIX = 'extractNarRuntimeDeps'
+    public static final String NAR_EXTRACT_TEST_RUNTIME_DEPS_TASK_PREFIX = 'extractNarTestRuntimeDeps'
     public static final String NAR_EXTRACT_PATH = "nar-dependencies"
 
     static String getCompileConfigurationName(NativeBinarySpec binary) {
-        // We skip the componentName in this scheme (binary.component)
         getConfigurationNameVar(NAR_COMPILE_CONFIGURATION_PREFIX,
                 binary.targetPlatform, binary.buildType, binary.flavor)
     }
 
-    static String getTestConfigurationName(NativeBinarySpec binary) {
+    static String getRuntimeConfigurationName(NativeBinarySpec binary) {
+        getConfigurationNameVar(NAR_RUNTIME_CONFIGURATION_PREFIX,
+                binary.targetPlatform, binary.buildType, binary.flavor)
+    }
+
+    static String getRuntimeConfigurationName(String targetPlatform, String buildType, String flavor) {
+        getConfigurationNameVar(NAR_RUNTIME_CONFIGURATION_PREFIX,
+                new NamedWrapper(targetPlatform), new NamedWrapper(buildType), new NamedWrapper(flavor))
+    }
+
+    static String getTestCompileConfigurationName(NativeBinarySpec binary) {
         // We skip the componentName in this scheme (binary.component)
-        getConfigurationNameVar(NAR_TEST_CONFIGURATION_PREFIX,
+        getConfigurationNameVar(NAR_TEST_COMPILE_CONFIGURATION_PREFIX,
+                binary.targetPlatform, binary.buildType, binary.flavor)
+    }
+
+    static String getTestRuntimeConfigurationName(NativeBinarySpec binary) {
+        // We skip the componentName in this scheme (binary.component)
+        getConfigurationNameVar(NAR_TEST_RUNTIME_CONFIGURATION_PREFIX,
                 binary.targetPlatform, binary.buildType, binary.flavor)
     }
 
@@ -32,8 +62,19 @@ class NameUtils
         getConfigurationNameVar(NAR_EXTRACT_COMPILE_DEPS_TASK_PREFIX,
                 binary.targetPlatform, binary.buildType, binary.flavor)
     }
-    static String getExtractNarTestDepsTaskName(NativeBinarySpecInternal binary) {
-        getConfigurationNameVar(NAR_EXTRACT_TEST_DEPS_TASK_PREFIX,
+
+    static String getExtractNarRuntimeDepsTaskName(NativeBinarySpecInternal binary) {
+        getConfigurationNameVar(NAR_EXTRACT_RUNTIME_DEPS_TASK_PREFIX,
+                binary.targetPlatform, binary.buildType, binary.flavor)
+    }
+
+    static String getExtractNarTestCompileDepsTaskName(NativeBinarySpecInternal binary) {
+        getConfigurationNameVar(NAR_EXTRACT_TEST_COMPILE_DEPS_TASK_PREFIX,
+                binary.targetPlatform, binary.buildType, binary.flavor)
+    }
+
+    static String getExtractNarTestRuntimeDepsTaskName(NativeBinarySpecInternal binary) {
+        getConfigurationNameVar(NAR_EXTRACT_TEST_RUNTIME_DEPS_TASK_PREFIX,
                 binary.targetPlatform, binary.buildType, binary.flavor)
     }
 
@@ -41,8 +82,16 @@ class NameUtils
         getNarDepsDir(buildDir, NAR_COMPILE_CONFIGURATION_PREFIX, binary)
     }
 
-    static File getNarTestDepsDir(File buildDir, NativeBinarySpec binary) {
-        getNarDepsDir(buildDir, NAR_TEST_CONFIGURATION_PREFIX, binary)
+    static File getNarRuntimeDepsDir(File buildDir, NativeBinarySpec binary) {
+        getNarDepsDir(buildDir, NAR_RUNTIME_CONFIGURATION_PREFIX, binary)
+    }
+
+    static File getNarTestCompileDepsDir(File buildDir, NativeBinarySpec binary) {
+        getNarDepsDir(buildDir, NAR_TEST_COMPILE_CONFIGURATION_PREFIX, binary)
+    }
+
+    static File getNarTestRuntimeDepsDir(File buildDir, NativeBinarySpec binary) {
+        getNarDepsDir(buildDir, NAR_TEST_RUNTIME_CONFIGURATION_PREFIX, binary)
     }
 
     static File getNarDepsDir(File buildDir, String prefix, NativeBinarySpec binary) {
