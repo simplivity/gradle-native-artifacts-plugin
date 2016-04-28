@@ -25,6 +25,7 @@ import org.gradle.model.Mutate;
 import org.gradle.model.RuleSource;
 import org.gradle.nativeplatform.NativeBinarySpec;
 import org.gradle.nativeplatform.test.NativeTestSuiteBinarySpec;
+import org.gradle.nativeplatform.toolchain.VisualCpp;
 
 public class NativeDependenciesRules extends RuleSource {
     private static final Logger logger = Logging.getLogger(NativeDependenciesRules.class);
@@ -115,8 +116,11 @@ public class NativeDependenciesRules extends RuleSource {
 
                 // Add the lib path to facilitate resolving transitive library
                 // dependencies that are referenced by the direct dependencies.
-                binary.getLinker().args("-L");
-                binary.getLinker().args(new File(compileDir, "lib").getAbsolutePath());
+                if (binary.getToolChain() instanceof VisualCpp) {
+                    binary.getLinker().args("/LIBPATH:" + new File(compileDir, "lib").getAbsolutePath());
+                } else {
+                    binary.getLinker().args("-L" + new File(compileDir, "lib").getAbsolutePath());
+                }
             }
 
         });
@@ -149,8 +153,11 @@ public class NativeDependenciesRules extends RuleSource {
 
                 // Add the lib path to facilitate resolving transitive library
                 // dependencies that are referenced by the direct dependencies.
-                binary.getLinker().args("-L");
-                binary.getLinker().args(new File(compileDir, "lib").getAbsolutePath());
+                if (binary.getToolChain() instanceof VisualCpp) {
+                    binary.getLinker().args("/LIBPATH:" + new File(compileDir, "lib").getAbsolutePath());
+                } else {
+                    binary.getLinker().args("-L" + new File(compileDir, "lib").getAbsolutePath());
+                }
             }
 
         });

@@ -8,6 +8,7 @@ import org.gradle.api.Task
 import org.gradle.api.internal.DomainObjectContext
 import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.bundling.Zip
+import org.gradle.internal.os.OperatingSystem;
 import org.gradle.internal.service.ServiceRegistry
 import org.gradle.language.nativeplatform.HeaderExportingSourceSet
 import org.gradle.model.Defaults
@@ -48,13 +49,14 @@ class SourceZipCreator extends RuleSource {
 
     private Task createSourcesZipTask(TaskContainer tasks, final NativeComponentSpec component, final Project project) {
         String name = GUtil.toCamelCase(component.name)
+
         return tasks.create("create${name}SourcesZip", Zip, new Action<Zip>() {
             @Override
             public void execute(final Zip zip) {
                 zip.description = "Create Zip archive with $component.name sources"
                 zip.group = 'Build'
                 zip.baseName = component.name
-                zip.classifier = 'sources'
+                zip.classifier = 'sources-' + (OperatingSystem.current().linux ? "linux" : "windows")
                 zip.destinationDir = new File(project.buildDir, "distributions")
 
                 for (sourceSet in component.sources) {

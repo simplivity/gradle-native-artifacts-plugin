@@ -13,9 +13,6 @@ group = 'me.sgeb.gradle'
 version = '2.7.0'
 status = 'Development'
 
-sourceCompatibility = 1.6
-targetCompatibility = 1.6
-
 repositories {
     maven {
         name "SimpliVity Artifactory Repository"
