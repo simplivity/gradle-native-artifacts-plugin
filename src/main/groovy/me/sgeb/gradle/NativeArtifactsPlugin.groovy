@@ -7,7 +7,6 @@ import javax.inject.Inject
 import me.sgeb.gradle.nativeartifacts.internal.BuildNarTaskCreator
 import me.sgeb.gradle.nativeartifacts.internal.ConfigurationCreator
 import me.sgeb.gradle.nativeartifacts.internal.ExtractNarDepsTaskCreator
-import me.sgeb.gradle.nativeartifacts.internal.FunctionHelpers
 import me.sgeb.gradle.nativeartifacts.internal.NativeArtifactPublisher
 import me.sgeb.gradle.nativeartifacts.internal.NativeDependenciesRules
 import me.sgeb.gradle.nativeartifacts.internal.SourceZipCreator
@@ -42,15 +41,11 @@ class NativeArtifactsPlugin implements Plugin<Project> {
         modelRegistry.getRoot().applyToAllLinksTransitive(ModelType.of(NativeComponentSpec), ConfigurationCreator)
 
         project.configurations.maybeCreate(NAR_COMPILE_CONFIGURATION_PREFIX)
-        project.configurations.maybeCreate(NAR_RUNTIME_CONFIGURATION_PREFIX)
         project.configurations.maybeCreate(NAR_TEST_COMPILE_CONFIGURATION_PREFIX)
-        project.configurations.maybeCreate(NAR_TEST_RUNTIME_CONFIGURATION_PREFIX)
 
         project.tasks.create(BuildNarTaskCreator.NAR_LIFECYCLE_TASK_NAME).configure {
             description = 'Builds all native artifact archives on all buildable platforms.'
             group = NAR_GROUP
         }
-
-        FunctionHelpers.addFunctions(project)
     }
 }

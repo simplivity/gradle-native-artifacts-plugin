@@ -11,6 +11,8 @@ publishing {
 
 apply plugin: 'com.jfrog.artifactory'
 
+artifactoryPublish.dependsOn tasks.withType(GenerateMavenPom)
+
 artifactory {
     clientConfig.setIncludeEnvVars(true)
     clientConfig.info.addEnvironmentProperty('artifact.build.date',new java.util.Date().toString())

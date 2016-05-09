@@ -2,10 +2,7 @@ package me.sgeb.gradle.nativeartifacts.internal;
 
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getCompileConfigurationName;
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getNarCompileDepsDir;
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getNarTestCompileDepsDir;
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getRuntimeConfigurationName;
 import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getTestCompileConfigurationName;
-import static me.sgeb.gradle.nativeartifacts.internal.NameUtils.getTestRuntimeConfigurationName;
 
 import java.io.File;
 import java.util.HashMap;
@@ -48,14 +45,9 @@ public class NativeDependenciesRules extends RuleSource {
                 final String staticClassifier = binary.getTargetPlatform().getName() + "-static-" + binary.getBuildType().getName();
 
                 String compileName = getCompileConfigurationName(binary);
-                String runtimeName = getRuntimeConfigurationName(binary);
 
                 for (Map<String, String> downloadedLibrary : dependencies.getDownloadedCompileLibraries()) {
                     addLibraryDependency(dependencyHandler, compileName, downloadedLibrary, sharedClassifier, staticClassifier);
-                    addTransitiveLibraryDependency(dependencyHandler, runtimeName, downloadedLibrary, sharedClassifier, staticClassifier);
-                }
-                for (Map<String, String> downloadedLibrary : dependencies.getDownloadedRuntimeLibraries()) {
-                    addLibraryDependency(dependencyHandler, runtimeName, downloadedLibrary, sharedClassifier, staticClassifier);
                 }
             }
 
@@ -63,26 +55,23 @@ public class NativeDependenciesRules extends RuleSource {
     }
 
     @Mutate
-    public void addDependenciesForTestBinaries(ModelMap<NativeTestSuiteBinarySpec> binaries, final NativeDependencyContainer dependencies, final ServiceRegistry serviceRegistry) {
+    public void addDependenciesForTestBinaries(ModelMap<NativeBinarySpec> binaries, final NativeDependencyContainer dependencies, final ServiceRegistry serviceRegistry) {
         Project project = (Project) serviceRegistry.get(DomainObjectContext.class);
         final DependencyHandler dependencyHandler = project.getDependencies();
 
-        binaries.withType(NativeTestSuiteBinarySpec.class, new Action<NativeTestSuiteBinarySpec>() {
+        binaries.withType(NativeBinarySpec.class, new Action<NativeBinarySpec>() {
 
             @Override
-            public void execute(NativeTestSuiteBinarySpec binary) {
-                final String sharedClassifier = binary.getTargetPlatform().getName() + "-shared-" + binary.getBuildType().getName();
-                final String staticClassifier = binary.getTargetPlatform().getName() + "-static-" + binary.getBuildType().getName();
+            public void execute(NativeBinarySpec binary) {
+                if (dependencies.isTestBinary(binary)) {
+                    final String sharedClassifier = binary.getTargetPlatform().getName() + "-shared-" + binary.getBuildType().getName();
+                    final String staticClassifier = binary.getTargetPlatform().getName() + "-static-" + binary.getBuildType().getName();
 
-                String compileName = getTestCompileConfigurationName(binary);
-                String runtimeName = getTestRuntimeConfigurationName(binary);
+                    String compileName = getTestCompileConfigurationName(binary);
 
-                for (Map<String, String> downloadedLibrary : dependencies.getDownloadedTestCompileLibraries()) {
-                    addLibraryDependency(dependencyHandler, compileName, downloadedLibrary, sharedClassifier, staticClassifier);
-                    addTransitiveLibraryDependency(dependencyHandler, runtimeName, downloadedLibrary, sharedClassifier, staticClassifier);
-                }
-                for (Map<String, String> downloadedLibrary : dependencies.getDownloadedTestRuntimeLibraries()) {
-                    addLibraryDependency(dependencyHandler, runtimeName, downloadedLibrary, sharedClassifier, staticClassifier);
+                    for (Map<String, String> downloadedLibrary : dependencies.getDownloadedTestCompileLibraries()) {
+                        addLibraryDependency(dependencyHandler, compileName, downloadedLibrary, sharedClassifier, staticClassifier);
+                    }
                 }
             }
 
@@ -101,25 +90,17 @@ public class NativeDependenciesRules extends RuleSource {
                     binary.lib(library);
                 }
 
-                for (Map<String, String> library : dependencies.getRuntimeLibraries()) {
-                    binary.lib(library);
-                }
-
-                File compileDir = getNarCompileDepsDir(project.getBuildDir(), binary);
+                File depsDir = getNarCompileDepsDir(project.getBuildDir(), binary);
                 for (Map<String, String> downloadedLibrary : dependencies.getDownloadedCompileLibraries()) {
-                    setDownloadedLibrary(binary, compileDir, downloadedLibrary);
-                }
-
-                for (Map<String, String> downloadedLibrary : dependencies.getDownloadedRuntimeLibraries()) {
-                    setDownloadedLibrary(binary, compileDir, downloadedLibrary);
+                    setDownloadedLibrary(binary, depsDir, "main/include", downloadedLibrary);
                 }
 
                 // Add the lib path to facilitate resolving transitive library
                 // dependencies that are referenced by the direct dependencies.
                 if (binary.getToolChain() instanceof VisualCpp) {
-                    binary.getLinker().args("/LIBPATH:" + new File(compileDir, "lib").getAbsolutePath());
+                    binary.getLinker().args("/LIBPATH:" + new File(depsDir, "lib").getAbsolutePath());
                 } else {
-                    binary.getLinker().args("-L" + new File(compileDir, "lib").getAbsolutePath());
+                    binary.getLinker().args("-L" + new File(depsDir, "lib").getAbsolutePath());
                 }
             }
 
@@ -127,39 +108,37 @@ public class NativeDependenciesRules extends RuleSource {
     }
 
     @Finalize
-    public void addLibrariesToTestBinaries(ModelMap<NativeTestSuiteBinarySpec> binaries, final NativeDependencyContainer dependencies, final ServiceRegistry serviceRegistry) {
+    public void addLibrariesToTestBinaries(ModelMap<NativeBinarySpec> binaries, final NativeDependencyContainer dependencies, final ServiceRegistry serviceRegistry) {
         final Project project = (Project) serviceRegistry.get(DomainObjectContext.class);
 
-        binaries.withType(NativeTestSuiteBinarySpec.class, new Action<NativeTestSuiteBinarySpec>() {
+        binaries.withType(NativeBinarySpec.class, new Action<NativeBinarySpec>() {
 
             @Override
-            public void execute(NativeTestSuiteBinarySpec binary) {
-                for (Map<String, String> library : dependencies.getTestCompileLibraries()) {
-                    binary.lib(library);
-                }
+            public void execute(NativeBinarySpec binary) {
+                if (dependencies.isTestBinary(binary)) {
+                    // We want these added only for pure unit tests, other test
+                    // binaries only use the downloaded libraries since they may
+                    // be libraries used as test dependencies themselves.
+                    if (binary instanceof NativeTestSuiteBinarySpec) {
+                        for (Map<String, String> library : dependencies.getTestCompileLibraries()) {
+                            binary.lib(library);
+                        }
+                    }
 
-                for (Map<String, String> library : dependencies.getTestRuntimeLibraries()) {
-                    binary.lib(library);
-                }
+                    File depsDir = getNarCompileDepsDir(project.getBuildDir(), binary);
+                    for (Map<String, String> downloadedLibrary : dependencies.getDownloadedTestCompileLibraries()) {
+                        setDownloadedLibrary(binary, depsDir, "test/include", downloadedLibrary);
+                    }
 
-                File compileDir = getNarTestCompileDepsDir(project.getBuildDir(), binary);
-                for (Map<String, String> downloadedLibrary : dependencies.getDownloadedTestCompileLibraries()) {
-                    setDownloadedLibrary(binary, compileDir, downloadedLibrary);
-                }
-
-                for (Map<String, String> downloadedLibrary : dependencies.getDownloadedTestRuntimeLibraries()) {
-                    setDownloadedLibrary(binary, compileDir, downloadedLibrary);
-                }
-
-                // Add the lib path to facilitate resolving transitive library
-                // dependencies that are referenced by the direct dependencies.
-                if (binary.getToolChain() instanceof VisualCpp) {
-                    binary.getLinker().args("/LIBPATH:" + new File(compileDir, "lib").getAbsolutePath());
-                } else {
-                    binary.getLinker().args("-L" + new File(compileDir, "lib").getAbsolutePath());
+                    // Add the lib path to facilitate resolving transitive library
+                    // dependencies that are referenced by the direct dependencies.
+                    if (binary.getToolChain() instanceof VisualCpp) {
+                        binary.getLinker().args("/LIBPATH:" + new File(depsDir, "lib").getAbsolutePath());
+                    } else {
+                        binary.getLinker().args("-L" + new File(depsDir, "lib").getAbsolutePath());
+                    }
                 }
             }
-
         });
     }
 
@@ -167,37 +146,33 @@ public class NativeDependenciesRules extends RuleSource {
             String configuration, Map<String, String> lib, String sharedClassifier,
             String staticClassifier)
     {
-        String classifier = selectClassifier(lib, sharedClassifier, staticClassifier);
         Map<String, String> dependency = new HashMap<String, String>();
 
-        dependency.put("group",   requiredAttribute(lib, "group"));
-        dependency.put("name",    requiredAttribute(lib, "library"));
-        dependency.put("version", requiredAttribute(lib, "version"));
-
-        dependency.put("ext",        optionalAttribute(lib, "ext", "nar"));
-
+        String group = requiredAttribute(lib, "group");
+        String name = requiredAttribute(lib, "library");
+        String version = requiredAttribute(lib, "version");
+        String classifier = selectClassifier(lib, sharedClassifier, staticClassifier);
         classifier = optionalAttribute(lib, "classifier", classifier);
+
+        dependency.put("group", group);
+        dependency.put("name", name);
+        dependency.put("version", version);
         dependency.put("classifier", classifier);
         dependency.put("configuration", classifier);
+        dependency.put("ext", optionalAttribute(lib, "ext", "nar"));
 
         logger.debug("Adding %s dependency: %s", configuration, dependency);
         dependencies.add(configuration, dependency);
-    }
 
-    private void addTransitiveLibraryDependency(DependencyHandler dependencies,
-            String configuration, Map<String, String> lib, String sharedClassifier,
-            String staticClassifier)
-    {
-        String classifier = selectClassifier(lib, sharedClassifier, staticClassifier);
-        Map<String, String> dependency = new HashMap<String, String>();
+        Map<String, String> transitive = new HashMap<String, String>();
 
-        dependency.put("group",   requiredAttribute(lib, "group"));
-        dependency.put("name",    requiredAttribute(lib, "library"));
-        dependency.put("version", requiredAttribute(lib, "version"));
-        dependency.put("configuration", classifier);
+        transitive.put("group", group);
+        transitive.put("name", name);
+        transitive.put("version", version);
+        transitive.put("configuration", classifier);
 
-        logger.debug("Adding %s transitive dependency: %s", configuration, dependency);
-        dependencies.add(configuration, dependency);
+        logger.debug("Adding %s transitive dependency: %s", configuration, transitive);
+        dependencies.add(configuration, transitive);
     }
 
     private String requiredAttribute(Map<String, String> lib, String attribute) {
@@ -238,15 +213,15 @@ public class NativeDependenciesRules extends RuleSource {
     // path and library path. Currently this takes the following arguments:
     // binary:  the NativeBinarySpec that we are adding a dependency for
     // lib:     the downloaded library map notation
-    private void setDownloadedLibrary(NativeBinarySpec binary, File narDepsDir, Map<String, String> lib) {
+    private void setDownloadedLibrary(NativeBinarySpec binary, File narDepsDir, String include, Map<String, String> lib) {
         String linkage = selectLinkage(lib);
         String name = requiredAttribute(lib, "library");
 
-        setDownloadedLibrary(binary, narDepsDir, name, linkage);
+        setDownloadedLibrary(binary, narDepsDir, include, name, linkage);
     }
 
-    private void setDownloadedLibrary(NativeBinarySpec binary, File narDepsDir, String name, String linkage) {
-        File includePath = new File(narDepsDir, "include");
+    private void setDownloadedLibrary(NativeBinarySpec binary, File narDepsDir, String include, String name, String linkage) {
+        File includePath = new File(narDepsDir, include);
         File libPath = new File(narDepsDir, "lib");
         File libraryFile, linkLibraryFile;
 

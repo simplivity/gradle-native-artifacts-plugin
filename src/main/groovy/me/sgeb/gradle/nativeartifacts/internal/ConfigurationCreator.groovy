@@ -12,12 +12,11 @@ import org.gradle.model.Defaults
 import org.gradle.model.RuleSource
 import org.gradle.nativeplatform.NativeBinarySpec
 import org.gradle.nativeplatform.NativeComponentSpec
-import org.gradle.nativeplatform.test.NativeTestSuiteBinarySpec
 
 class ConfigurationCreator extends RuleSource {
 
     @Defaults
-    public void createConfigurationForComponent(NativeComponentSpec nativeComponent, ServiceRegistry serviceRegistry)
+    public void createConfigurationForComponent(NativeComponentSpec nativeComponent, final NativeDependencyContainer dependencies, ServiceRegistry serviceRegistry)
     {
         Project project = serviceRegistry.get(DomainObjectContext)
 
@@ -28,16 +27,8 @@ class ConfigurationCreator extends RuleSource {
                                 NAR_COMPILE_CONFIGURATION_PREFIX, binary.component,
                                 binary.targetPlatform, binary.buildType, binary.flavor)
                 createConfigurationHierarchy(project.configurations,
-                                NAR_RUNTIME_CONFIGURATION_PREFIX, binary.component,
+                                NAR_TEST_COMPILE_CONFIGURATION_PREFIX, binary.component,
                                 binary.targetPlatform, binary.buildType, binary.flavor)
-                if (binary instanceof NativeTestSuiteBinarySpec) {
-                    createConfigurationHierarchy(project.configurations,
-                                    NAR_TEST_COMPILE_CONFIGURATION_PREFIX, binary.component,
-                                    binary.targetPlatform, binary.buildType, binary.flavor)
-                    createConfigurationHierarchy(project.configurations,
-                                    NAR_TEST_RUNTIME_CONFIGURATION_PREFIX, binary.component,
-                                    binary.targetPlatform, binary.buildType, binary.flavor)
-                }
             }
         })
     }
