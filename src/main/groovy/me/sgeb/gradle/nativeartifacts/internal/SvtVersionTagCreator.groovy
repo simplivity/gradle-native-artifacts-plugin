@@ -85,7 +85,7 @@ class SvtVersionTagCreator extends RuleSource {
                     task.description = "Creates version object tag for $binary.namingScheme.description."
 
                     def fileName = getVersionTagFileName(binary)
-                    task.versionTagText = createVersionTag(task.project.group, task.project.version, task.project.gitdata.commit, binary)
+                    task.versionTagText = createVersionTag(task.project.group, task.project.version.toString(), task.project.gitdata.commit, binary)
                     task.versionTagFile = new File(task.project.buildDir, "version-tags/${fileName}.txt")
                     task.versionTagObject = new File(task.project.buildDir, "version-tags/${fileName}.o")
                 }

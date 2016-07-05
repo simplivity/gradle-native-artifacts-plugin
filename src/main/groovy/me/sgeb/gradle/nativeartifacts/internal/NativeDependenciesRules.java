@@ -150,13 +150,15 @@ public class NativeDependenciesRules extends RuleSource {
 
         String group = requiredAttribute(lib, "group");
         String name = requiredAttribute(lib, "library");
-        String version = requiredAttribute(lib, "version");
+        String version = optionalAttribute(lib, "version", null);
         String classifier = selectClassifier(lib, sharedClassifier, staticClassifier);
         classifier = optionalAttribute(lib, "classifier", classifier);
 
         dependency.put("group", group);
         dependency.put("name", name);
-        dependency.put("version", version);
+        if (version != null) {
+            dependency.put("version", version);
+        }
         dependency.put("classifier", classifier);
         dependency.put("configuration", classifier);
         dependency.put("ext", optionalAttribute(lib, "ext", "nar"));
