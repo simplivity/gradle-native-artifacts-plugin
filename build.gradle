@@ -10,7 +10,7 @@ apply plugin: 'signing'
 apply from: rootProject.file('artifactory.gradle')
 
 group = 'me.sgeb.gradle'
-version = '2.7.2'
+version = '2.7.3'
 status = 'Development'
 
 repositories {

@@ -10,6 +10,7 @@ import org.gradle.api.file.FileTree
 import org.gradle.api.internal.DomainObjectContext
 import org.gradle.api.logging.Logger
 import org.gradle.api.logging.Logging
+import org.gradle.api.specs.Specs
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.TaskContainer
 import org.gradle.internal.service.ServiceRegistry
@@ -129,6 +130,9 @@ class ExtractNarDepsTaskCreator extends RuleSource {
                 copy.group = NAR_GROUP
                 copy.dependsOn compileResolver.compileConf(), testResolver.compileConf()
                 copy.description = "Extracts native artifact dependencies for configurations ${compileResolver.compileConf().name} and ${testResolver.compileConf().name}"
+
+                copy.inputs.files(compileResolver.compileConf().fileCollection(Specs.satisfyAll()))
+                copy.inputs.files(testResolver.compileConf().fileCollection(Specs.satisfyAll()))
 
                 copy.into narDepsDir
 
