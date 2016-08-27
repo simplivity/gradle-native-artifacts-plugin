@@ -11,7 +11,7 @@ import org.gradle.api.internal.DomainObjectContext
 import org.gradle.api.logging.Logger
 import org.gradle.api.logging.Logging
 import org.gradle.api.specs.Specs
-import org.gradle.api.tasks.Copy
+import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.TaskContainer
 import org.gradle.internal.service.ServiceRegistry
 import org.gradle.model.Finalize
@@ -22,17 +22,44 @@ import org.gradle.nativeplatform.NativeBinarySpec
 interface DependencyTreeResolver {
     Configuration compileConf()
     Set<File> resolvedFiles()
-    Collection<FileTree> resolvedFileTrees()
+    Collection<FileTree> resolvedIncludeFileTrees()
+    Collection<FileTree> resolvedLibFileTrees()
 }
 
-class CompileDependencyTreeResolver implements DependencyTreeResolver {
+abstract class AbstractDependencyTreeResolver implements DependencyTreeResolver {
     private static final Logger logger = Logging.getLogger(CompileDependencyTreeResolver.class)
+    protected final Project project
 
-    private final Project project
+    AbstractDependencyTreeResolver(Project project) {
+        this.project = project
+    }
+
+    abstract Set<File> resolvedFiles()
+
+    Collection<FileTree> resolvedIncludeFileTrees() {
+        resolvedFiles().collect {
+            logger.debug("Extracting NAR file headers {}", it)
+            project.zipTree(it).matching {
+                include 'include/**'
+            }
+        }
+    }
+
+    Collection<FileTree> resolvedLibFileTrees() {
+        resolvedFiles().collect {
+            logger.debug("Extracting NAR file libraries {}", it)
+            project.zipTree(it).matching {
+                include 'lib/**'
+            }
+        }
+    }
+}
+
+class CompileDependencyTreeResolver extends AbstractDependencyTreeResolver {
     private final Configuration compile
 
     CompileDependencyTreeResolver(Project project, String compileName) {
-        this.project = project
+        super(project)
         compile = project.configurations[compileName]
     }
 
@@ -45,26 +72,16 @@ class CompileDependencyTreeResolver implements DependencyTreeResolver {
             it.name.endsWith('.nar') || it.name.endsWith('.zip')
         } as Set
     }
-
-    Collection<FileTree> resolvedFileTrees() {
-        resolvedFiles().collect {
-            logger.debug("Extracting NAR file {}", it)
-            project.zipTree(it)
-        }
-    }
 }
 
-class TestCompileDependencyTreeResolver implements DependencyTreeResolver {
-    private static final Logger logger = Logging.getLogger(TestCompileDependencyTreeResolver.class)
-
-    private final Project project
+class TestCompileDependencyTreeResolver extends AbstractDependencyTreeResolver {
     private final Configuration testCompile
     private final DependencyTreeResolver compileResolver
 
     TestCompileDependencyTreeResolver(DependencyTreeResolver compileResolver, Project project, String testCompileName) {
-        this.compileResolver = compileResolver
-        this.project = project
+        super(project)
         testCompile = project.configurations[testCompileName]
+        this.compileResolver = compileResolver
     }
 
     Configuration compileConf() {
@@ -77,13 +94,6 @@ class TestCompileDependencyTreeResolver implements DependencyTreeResolver {
         } as Set
 
         return compileFiles - compileResolver.resolvedFiles()
-    }
-
-    Collection<FileTree> resolvedFileTrees() {
-        resolvedFiles().collect {
-            logger.debug("Extracting NAR file {}", it)
-            project.zipTree(it)
-        }
     }
 }
 
@@ -124,9 +134,9 @@ class ExtractNarDepsTaskCreator extends RuleSource {
                                           DependencyTreeResolver testResolver,
                                           String taskName, File narDepsDir, TaskContainer tasks) {
 
-        return tasks.create(taskName, Copy, new Action<Copy>() {
+        return tasks.create(taskName, Sync, new Action<Sync>() {
             @Override
-            public void execute(Copy copy) {
+            public void execute(Sync copy) {
                 copy.group = NAR_GROUP
                 copy.dependsOn compileResolver.compileConf(), testResolver.compileConf()
                 copy.description = "Extracts native artifact dependencies for configurations ${compileResolver.compileConf().name} and ${testResolver.compileConf().name}"
@@ -136,26 +146,21 @@ class ExtractNarDepsTaskCreator extends RuleSource {
 
                 copy.into narDepsDir
 
+                copy.from {
+                    compileResolver.resolvedLibFileTrees()
+                }
+                copy.from {
+                    testResolver.resolvedLibFileTrees()
+                }
                 copy.into('main') {
                     from {
-                        compileResolver.resolvedFileTrees()
+                        compileResolver.resolvedIncludeFileTrees()
                     }
-                    include 'include/**'
                 }
                 copy.into('test') {
                     from {
-                        testResolver.resolvedFileTrees()
+                        testResolver.resolvedIncludeFileTrees()
                     }
-                    include 'include/**'
-                }
-                copy.into('.') {
-                    from {
-                        compileResolver.resolvedFileTrees()
-                    }
-                    from {
-                        testResolver.resolvedFileTrees()
-                    }
-                    include 'lib/**'
                 }
             }
         })
