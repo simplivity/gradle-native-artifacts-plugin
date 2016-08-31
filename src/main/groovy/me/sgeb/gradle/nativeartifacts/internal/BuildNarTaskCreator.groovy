@@ -38,7 +38,7 @@ class BuildNarTaskCreator extends RuleSource {
         Project project = serviceRegistry.get(DomainObjectContext)
         Task narLifecycleTask = tasks[NAR_LIFECYCLE_TASK_NAME]
 
-        binaries.each { NativeBinarySpec binary ->
+        for (NativeBinarySpec binary : binaries) {
             if (binary.buildable) {
                 NativeComponentSpec component = binary.getComponent()
                 if (targetedComponentType(component)) {
@@ -95,6 +95,9 @@ class BuildNarTaskCreator extends RuleSource {
                     nar.classifier = classifierForBinary(binary)
                 }
             })
+
+            // Add the NAR task to the artifacts container
+            project.artifacts.add(configuration.name, narTask)
         }
 
         return narTask
