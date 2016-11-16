@@ -163,7 +163,7 @@ public class NativeDependenciesRules extends RuleSource {
         dependency.put("configuration", classifier);
         dependency.put("ext", optionalAttribute(lib, "ext", "nar"));
 
-        logger.debug("Adding %s dependency: %s", configuration, dependency);
+        logger.debug("Adding {} dependency: {}", configuration, dependency);
         dependencies.add(configuration, dependency);
 
         Map<String, String> transitive = new HashMap<String, String>();
@@ -173,7 +173,7 @@ public class NativeDependenciesRules extends RuleSource {
         transitive.put("version", version);
         transitive.put("configuration", classifier);
 
-        logger.debug("Adding %s transitive dependency: %s", configuration, transitive);
+        logger.debug("Adding {} transitive dependency: {}", configuration, transitive);
         dependencies.add(configuration, transitive);
     }
 
